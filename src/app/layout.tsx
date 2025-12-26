@@ -6,7 +6,7 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-    title: "SamLife - Your Personal Life Buddy",
+    title: "NextLife - Your Personal Life Buddy",
     description: "Track habits, prayers, sleep, expenses & more. Your all-in-one life companion by Sameer.",
     keywords: ["life tracker", "habit tracker", "prayer tracker", "expense tracker", "productivity", "sameer"],
     authors: [{ name: "Sameer" }],
@@ -14,15 +14,15 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         statusBarStyle: "default",
-        title: "SamLife",
+        title: "NextLife",
     },
     formatDetection: {
         telephone: false,
     },
     openGraph: {
         type: "website",
-        siteName: "SamLife",
-        title: "SamLife - Your Personal Life Buddy",
+        siteName: "NextLife",
+        title: "NextLife - Your Personal Life Buddy",
         description: "Track habits, prayers, sleep, expenses & more. Your all-in-one life companion.",
     },
 };

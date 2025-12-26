@@ -1,7 +1,7 @@
 {
-  "name": "samlife",
+  "name": "nextlife",
   "version": "1.0.0",
-  "description": "SamLife - Your Personal Life Buddy by Sameer",
+  "description": "NextLife - Your Personal Life Buddy",
   "private": true,
   "scripts": {
     "dev": "next dev",

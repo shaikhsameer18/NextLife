@@ -66,7 +66,7 @@ export default function HomePage() {
 
                 {/* Title */}
                 <h1 className="text-4xl md:text-6xl font-black mb-2 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
-                    SamLife
+                    NextLife
                 </h1>
 
                 {/* Tagline */}

@@ -51,7 +51,7 @@ export default function NotFound() {
 
                 {/* Footer */}
                 <p className="text-purple-200/50 text-xs mt-8">
-                    SamLife • Your Personal Life Buddy
+                    NextLife • Your Personal Life Buddy
                 </p>
             </div>
         </div>

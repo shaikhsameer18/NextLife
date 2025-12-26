@@ -54,7 +54,7 @@ export default function RegisterPage() {
         try {
             const success = await register(email.toLowerCase().trim(), password, name.trim());
             if (success) {
-                toast({ title: "Welcome to SamLife! 🎉" });
+                toast({ title: "Welcome to NextLife! 🎉" });
                 router.push("/dashboard");
             }
         } catch {
@@ -86,7 +86,7 @@ export default function RegisterPage() {
                         <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                             <Sparkles className="w-5 h-5 text-white" />
                         </div>
-                        <span className="text-xl font-bold text-white">SamLife</span>
+                        <span className="text-xl font-bold text-white">NextLife</span>
                     </Link>
                 </div>
 
@@ -117,7 +117,7 @@ export default function RegisterPage() {
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                                 <Sparkles className="w-5 h-5 text-white" />
                             </div>
-                            <span className="text-xl font-bold">SamLife</span>
+                            <span className="text-xl font-bold">NextLife</span>
                         </Link>
                     </div>
 
@@ -201,10 +201,10 @@ export default function RegisterPage() {
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="Confirm password"
                                     className={`w-full pl-10 pr-4 py-3 rounded-xl bg-secondary border-2 outline-none text-sm ${confirmPassword && confirmPassword !== password
-                                            ? "border-destructive"
-                                            : confirmPassword && confirmPassword === password
-                                                ? "border-green-500"
-                                                : "border-transparent focus:border-primary"
+                                        ? "border-destructive"
+                                        : confirmPassword && confirmPassword === password
+                                            ? "border-green-500"
+                                            : "border-transparent focus:border-primary"
                                         }`}
                                     required
                                 />

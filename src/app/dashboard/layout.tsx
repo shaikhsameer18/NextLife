@@ -89,7 +89,7 @@ export default function DashboardLayout({
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                             <Sparkles className="w-4 h-4 text-white" />
                         </div>
-                        <span className="font-bold text-lg">SamLife</span>
+                        <span className="font-bold text-lg">NextLife</span>
                     </Link>
                     <button
                         onClick={() => setSidebarOpen(true)}
@@ -120,7 +120,7 @@ export default function DashboardLayout({
                             <Sparkles className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <span className="font-bold text-lg">SamLife</span>
+                            <span className="font-bold text-lg">NextLife</span>
                             <p className="text-xs text-muted-foreground">Your Life Buddy</p>
                         </div>
                     </Link>
@@ -141,8 +141,8 @@ export default function DashboardLayout({
                                 key={item.href}
                                 href={item.href}
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive
-                                        ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary border border-primary/20"
-                                        : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                                    ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary border border-primary/20"
+                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                                     }`}
                             >
                                 <item.icon className={`w-5 h-5 ${isActive ? "text-primary" : item.color}`} />
@@ -157,8 +157,8 @@ export default function DashboardLayout({
                     <Link
                         href="/dashboard/settings"
                         className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${pathname === "/dashboard/settings"
-                                ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary"
-                                : "hover:bg-secondary text-muted-foreground hover:text-foreground"
+                            ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary"
+                            : "hover:bg-secondary text-muted-foreground hover:text-foreground"
                             }`}
                     >
                         <Settings className="w-5 h-5" />
