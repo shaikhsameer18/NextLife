@@ -1,0 +1,207 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useAuthStore } from "@/stores/auth";
+import { getUserDatabase } from "@/lib/db/database";
+import { generateId } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import type { VaultItem } from "@/types";
+import { Lightbulb, Plus, Search, FileText, Link2, Sparkles, Star, StarOff, Trash2, X, ExternalLink, Brain } from "lucide-react";
+import { format } from "date-fns";
+
+type ItemType = "note" | "link" | "idea";
+type FilterType = "all" | ItemType | "favorites";
+
+export default function VaultPage() {
+    const { user } = useAuthStore();
+    const { toast } = useToast();
+    const [items, setItems] = useState<VaultItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [showForm, setShowForm] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filter, setFilter] = useState<FilterType>("all");
+    const [selectedItem, setSelectedItem] = useState<VaultItem | null>(null);
+
+    const [formType, setFormType] = useState<ItemType>("note");
+    const [formTitle, setFormTitle] = useState("");
+    const [formContent, setFormContent] = useState("");
+    const [formUrl, setFormUrl] = useState("");
+    const [formTags, setFormTags] = useState("");
+
+    const loadItems = useCallback(async () => {
+        if (!user) return;
+        try {
+            const db = getUserDatabase(user.id);
+            const allItems = await db.vaultItems.toArray();
+            const activeItems = allItems.filter(item => !item.isArchived).sort((a, b) => b.createdAt - a.createdAt);
+            setItems(activeItems);
+        } catch (error) {
+            console.error("Failed to load vault items:", error);
+        } finally {
+            setLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => { loadItems(); }, [loadItems]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !formTitle.trim()) return;
+        try {
+            const db = getUserDatabase(user.id);
+            const now = Date.now();
+            const tags = formTags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+            const item: VaultItem = { id: generateId(), userId: user.id, type: formType, title: formTitle.trim(), content: formContent.trim(), url: formType === "link" ? formUrl.trim() : undefined, tags, isFavorite: false, isArchived: false, createdAt: now, updatedAt: now, syncStatus: "pending", version: 1 };
+            await db.vaultItems.add(item);
+            toast({ title: "Saved to vault! 💡" });
+            setShowForm(false);
+            setFormType("note"); setFormTitle(""); setFormContent(""); setFormUrl(""); setFormTags("");
+            loadItems();
+        } catch (error) {
+            console.error("Failed to save item:", error);
+        }
+    };
+
+    const toggleFavorite = async (itemId: string, currentValue: boolean) => {
+        if (!user) return;
+        try { const db = getUserDatabase(user.id); await db.vaultItems.update(itemId, { isFavorite: !currentValue, updatedAt: Date.now() }); loadItems(); } catch (error) { console.error("Failed to toggle favorite:", error); }
+    };
+
+    const deleteItem = async (itemId: string) => {
+        if (!user) return;
+        try { const db = getUserDatabase(user.id); await db.vaultItems.delete(itemId); setSelectedItem(null); toast({ title: "Item deleted" }); loadItems(); } catch (error) { console.error("Failed to delete item:", error); }
+    };
+
+    const filteredItems = items.filter((item) => {
+        if (filter === "favorites" && !item.isFavorite) return false;
+        if (filter !== "all" && filter !== "favorites" && item.type !== filter) return false;
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return item.title.toLowerCase().includes(query) || item.content.toLowerCase().includes(query) || item.tags.some((t) => t.includes(query));
+    });
+
+    const getTypeIcon = (type: ItemType) => { switch (type) { case "note": return FileText; case "link": return Link2; case "idea": return Sparkles; } };
+    const getTypeStyle = (type: ItemType) => { switch (type) { case "note": return { gradient: "from-blue-500 to-cyan-500" }; case "link": return { gradient: "from-green-500 to-emerald-500" }; case "idea": return { gradient: "from-purple-500 to-pink-500" }; } };
+
+    if (loading) {
+        return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>);
+    }
+
+    return (
+        <div className="space-y-4 pb-24 md:pb-6 overflow-x-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2">
+                <h1 className="text-lg md:text-2xl font-bold flex items-center gap-2">
+                    <div className="p-1.5 md:p-2 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white"><Brain className="w-4 h-4 md:w-5 md:h-5" /></div>
+                    Vault
+                </h1>
+                <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-sm">
+                    <Plus className="w-4 h-4" /><span>Add</span>
+                </button>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border focus:border-cyan-500 outline-none text-sm" />
+            </div>
+
+            {/* Filter - Grid layout */}
+            <div className="grid grid-cols-5 gap-1">
+                {(["all", "note", "link", "idea", "favorites"] as FilterType[]).map((f) => (
+                    <button key={f} onClick={() => setFilter(f)} className={`px-2 py-2 rounded-lg text-xs font-semibold transition-all capitalize ${filter === f ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white" : "bg-secondary"}`}>
+                        {f === "favorites" ? "⭐" : f}
+                    </button>
+                ))}
+            </div>
+
+            {/* Items */}
+            {filteredItems.length === 0 ? (
+                <div className="text-center py-12">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400/20 to-blue-500/20 flex items-center justify-center mx-auto mb-3"><Lightbulb className="w-7 h-7 text-cyan-500/50" /></div>
+                    <h3 className="font-semibold mb-1">{searchQuery || filter !== "all" ? "No matching items" : "Vault is empty"}</h3>
+                    <p className="text-muted-foreground text-sm">{searchQuery || filter !== "all" ? "Try different filter" : "Save notes, links, ideas"}</p>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {filteredItems.map((item) => {
+                        const Icon = getTypeIcon(item.type);
+                        const style = getTypeStyle(item.type);
+                        return (
+                            <div key={item.id} className="p-3 rounded-xl bg-card border border-border hover:border-cyan-500/50 transition-all">
+                                <div className="flex items-start gap-2">
+                                    <div className={`p-1.5 rounded-lg bg-gradient-to-br ${style.gradient} text-white flex-shrink-0`}><Icon className="w-3.5 h-3.5" /></div>
+                                    <button onClick={() => setSelectedItem(item)} className="flex-1 min-w-0 text-left">
+                                        <h3 className="font-bold text-sm line-clamp-1">{item.title}</h3>
+                                        <p className="text-xs text-muted-foreground line-clamp-1">{item.content || "No description"}</p>
+                                    </button>
+                                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                                        <button onClick={() => toggleFavorite(item.id, item.isFavorite)} className="p-1">
+                                            {item.isFavorite ? <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /> : <StarOff className="w-4 h-4 text-muted-foreground" />}
+                                        </button>
+                                        <button onClick={() => deleteItem(item.id)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
+                                {item.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">{item.tags.slice(0, 3).map((tag) => (<span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">#{tag}</span>))}</div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Item Detail Modal - Bottom sheet */}
+            {selectedItem && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
+                    <div className="bg-card border-t border-border rounded-t-2xl shadow-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <div className={`p-2 rounded-lg bg-gradient-to-br ${getTypeStyle(selectedItem.type).gradient} text-white`}>
+                                    {(() => { const Icon = getTypeIcon(selectedItem.type); return <Icon className="w-4 h-4" />; })()}
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="font-bold text-sm truncate">{selectedItem.title}</p>
+                                    <p className="text-xs text-muted-foreground capitalize">{selectedItem.type} • {format(selectedItem.createdAt, "MMM d, yyyy")}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedItem(null)} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4">
+                            {selectedItem.type === "link" && selectedItem.url && (
+                                <a href={selectedItem.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-cyan-500 hover:underline mb-3 text-sm"><ExternalLink className="w-3 h-3" />Open Link</a>
+                            )}
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{selectedItem.content}</p>
+                            {selectedItem.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-border">{selectedItem.tags.map((tag) => (<span key={tag} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-xs">#{tag}</span>))}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add Item Modal */}
+            {showForm && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+                    <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
+                            <h2 className="text-lg font-bold">💡 Add to Vault</h2>
+                            <button onClick={() => { setShowForm(false); setFormType("note"); setFormTitle(""); setFormContent(""); setFormUrl(""); setFormTags(""); }} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+                            <div><label className="block text-sm font-semibold mb-2">Type</label><div className="grid grid-cols-3 gap-1.5">{(["note", "link", "idea"] as ItemType[]).map((type) => { const Icon = getTypeIcon(type); const style = getTypeStyle(type); return (<button key={type} type="button" onClick={() => setFormType(type)} className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg transition-all capitalize font-semibold text-sm ${formType === type ? `bg-gradient-to-r ${style.gradient} text-white` : "bg-secondary"}`}><Icon className="w-4 h-4" />{type}</button>); })}</div></div>
+                            <div><label className="block text-sm font-semibold mb-1.5">Title</label><input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder={formType === "note" ? "Note title..." : formType === "link" ? "Link title..." : "Idea name..."} className="w-full px-3 py-2.5 rounded-xl bg-secondary border-2 border-transparent focus:border-cyan-500 outline-none text-sm" required /></div>
+                            {formType === "link" && (<div><label className="block text-sm font-semibold mb-1.5">URL</label><input type="url" value={formUrl} onChange={(e) => setFormUrl(e.target.value)} placeholder="https://..." className="w-full px-3 py-2.5 rounded-xl bg-secondary border-2 border-transparent focus:border-cyan-500 outline-none text-sm" /></div>)}
+                            <div><label className="block text-sm font-semibold mb-1.5">{formType === "idea" ? "Description" : "Content"}</label><textarea value={formContent} onChange={(e) => setFormContent(e.target.value)} placeholder="Add details..." rows={3} className="w-full px-3 py-2.5 rounded-xl bg-secondary border-2 border-transparent focus:border-cyan-500 outline-none resize-none text-sm" /></div>
+                            <div><label className="block text-sm font-semibold mb-1.5">Tags (comma separated)</label><input type="text" value={formTags} onChange={(e) => setFormTags(e.target.value)} placeholder="work, reference..." className="w-full px-3 py-2.5 rounded-xl bg-secondary border-2 border-transparent focus:border-cyan-500 outline-none text-sm" /></div>
+                            <div className="flex gap-2 pt-2 pb-4">
+                                <button type="button" onClick={() => { setShowForm(false); setFormType("note"); setFormTitle(""); setFormContent(""); setFormUrl(""); setFormTags(""); }} className="flex-1 py-3 rounded-xl bg-secondary font-semibold">Cancel</button>
+                                <button type="submit" className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
