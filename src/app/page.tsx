@@ -1,10 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/components/providers";
 import {
     Sparkles, ArrowRight, CheckCircle2, Moon, Bed, Droplets,
-    ListChecks, Timer, BookOpen, Wallet, Shield, Zap, Heart, Download
+    ListChecks, Timer, BookOpen, Wallet, Shield, Zap, Heart, Download,
+    Utensils, Dumbbell
 } from "lucide-react";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -17,15 +20,26 @@ const FEATURES = [
     { icon: Moon, label: "Namaz", color: "from-purple-500 to-violet-600" },
     { icon: Bed, label: "Sleep", color: "from-indigo-500 to-blue-600" },
     { icon: Droplets, label: "Water", color: "from-blue-500 to-cyan-600" },
+    { icon: Utensils, label: "Meals", color: "from-orange-500 to-amber-600" },
     { icon: ListChecks, label: "Tasks", color: "from-red-500 to-pink-600" },
     { icon: Timer, label: "Focus", color: "from-yellow-500 to-orange-600" },
     { icon: BookOpen, label: "Journal", color: "from-pink-500 to-rose-600" },
     { icon: Wallet, label: "Money", color: "from-emerald-500 to-green-600" },
+    { icon: Dumbbell, label: "Fitness", color: "from-teal-500 to-cyan-600" },
 ];
 
 export default function HomePage() {
+    const router = useRouter();
+    const { session, loading } = useAuth();
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [isInstallable, setIsInstallable] = useState(false);
+
+    // Auto-redirect to dashboard if logged in
+    useEffect(() => {
+        if (!loading && session) {
+            router.push("/dashboard");
+        }
+    }, [session, loading, router]);
 
     useEffect(() => {
         const handler = (e: Event) => {
@@ -43,6 +57,20 @@ export default function HomePage() {
         const { outcome } = await deferredPrompt.userChoice;
         if (outcome === "accepted") setIsInstallable(false);
     };
+
+    // Show loading while checking auth
+    if (loading) {
+        return (
+            <div className="h-screen bg-gradient-to-b from-slate-900 via-purple-950 to-slate-900 flex items-center justify-center">
+                <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    // Don't show if redirecting to dashboard
+    if (session) {
+        return null;
+    }
 
     return (
         <div className="h-screen bg-gradient-to-b from-slate-900 via-purple-950 to-slate-900 text-white overflow-hidden">
@@ -94,8 +122,8 @@ export default function HomePage() {
                     </button>
                 )}
 
-                {/* Features Grid */}
-                <div className="grid grid-cols-4 gap-2 md:gap-4 max-w-sm md:max-w-2xl mb-5">
+                {/* Features Grid - Now 5x2 with Meals and Fitness */}
+                <div className="grid grid-cols-5 gap-2 md:gap-4 max-w-sm md:max-w-2xl mb-5">
                     {FEATURES.map((feature) => (
                         <div key={feature.label} className="flex flex-col items-center gap-1">
                             <div className={`p-2.5 md:p-3.5 rounded-xl bg-gradient-to-br ${feature.color} shadow-lg hover:scale-110 transition-all cursor-pointer`}>

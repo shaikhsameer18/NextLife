@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { getToday, generateId } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import type { Prayer, PrayerType } from "@/types";
 import { Moon, Sun, Sunset, Cloud, Star, Check, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { format, addDays, subDays, parseISO, startOfWeek, endOfWeek } from "date-fns";
@@ -18,8 +17,7 @@ const PRAYERS: { key: PrayerType; name: string; icon: React.ElementType; time: s
 ];
 
 export default function PrayerPage() {
-    const { user } = useAuthStore();
-    const { toast } = useToast();
+    const { user } = useUser();
     const [selectedDate, setSelectedDate] = useState(getToday());
     const [prayer, setPrayer] = useState<Prayer | null>(null);
     const [weeklyData, setWeeklyData] = useState<Map<string, Prayer>>(new Map());
@@ -54,12 +52,12 @@ export default function PrayerPage() {
     const togglePrayer = async (prayerType: PrayerType) => {
         if (!user) return;
         if (selectedDate < minDate) {
-            toast({ title: "Cannot modify old entries", description: "Limited to 2 days back", variant: "destructive" });
-            return;
+            return; // Can't modify old entries
         }
         try {
             const db = getUserDatabase(user.id);
             const now = Date.now();
+
             if (prayer) {
                 await db.prayers.update(prayer.id, { [prayerType]: !prayer[prayerType], updatedAt: now });
                 setPrayer({ ...prayer, [prayerType]: !prayer[prayerType], updatedAt: now });
@@ -143,8 +141,8 @@ export default function PrayerPage() {
                             onClick={() => !isDisabled && setSelectedDate(day)}
                             disabled={isDisabled}
                             className={`p-1.5 md:p-3 rounded-lg md:rounded-xl text-center transition-all ${isSelected ? "bg-gradient-to-br from-purple-500 to-violet-600 text-white shadow-lg shadow-purple-500/30"
-                                    : isToday ? "bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500"
-                                        : isDisabled ? "bg-secondary/50 opacity-40" : "bg-card border-2 border-border hover:border-purple-500/50"
+                                : isToday ? "bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500"
+                                    : isDisabled ? "bg-secondary/50 opacity-40" : "bg-card border-2 border-border hover:border-purple-500/50"
                                 }`}
                         >
                             <p className="text-[10px] md:text-xs font-medium">{format(parseISO(day), "EEE")}</p>
@@ -191,7 +189,7 @@ export default function PrayerPage() {
                             onClick={() => togglePrayer(p.key)}
                             disabled={!canEdit}
                             className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${isCompleted ? "bg-gradient-to-r from-purple-500/10 to-violet-500/5 border-purple-500/40"
-                                    : canEdit ? "bg-card border-border hover:border-purple-500/50 hover:shadow-lg" : "bg-secondary/50 border-border opacity-60 cursor-not-allowed"
+                                : canEdit ? "bg-card border-border hover:border-purple-500/50 hover:shadow-lg" : "bg-secondary/50 border-border opacity-60 cursor-not-allowed"
                                 }`}
                         >
                             <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center transition-all ${isCompleted ? `bg-gradient-to-br ${p.color} text-white shadow-lg` : "bg-secondary"}`}>

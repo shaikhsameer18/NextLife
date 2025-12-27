@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +19,7 @@ const QUICK_AMOUNTS = [
 const DAILY_GOAL = 2500; // ml
 
 export default function WaterPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const { toast } = useToast();
     const [logs, setLogs] = useState<WaterLog[]>([]);
     const [loading, setLoading] = useState(true);
@@ -254,8 +254,8 @@ export default function WaterPage() {
                                 <div className="w-full h-20 bg-secondary rounded-lg flex items-end overflow-hidden">
                                     <div
                                         className={`w-full rounded-t-lg transition-all ${isSelected
-                                                ? "bg-gradient-to-t from-blue-600 to-cyan-500"
-                                                : "bg-gradient-to-t from-blue-500/60 to-cyan-400/60"
+                                            ? "bg-gradient-to-t from-blue-600 to-cyan-500"
+                                            : "bg-gradient-to-t from-blue-500/60 to-cyan-400/60"
                                             }`}
                                         style={{ height: `${Math.min(heightPercent, 100)}%` }}
                                     />

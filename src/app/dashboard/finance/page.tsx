@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +23,7 @@ const CATEGORIES = [
 type ViewMode = "today" | "daily" | "monthly";
 
 export default function FinancePage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const { toast } = useToast();
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -197,8 +197,8 @@ export default function FinancePage() {
                         key={tab.id}
                         onClick={() => setViewMode(tab.id as ViewMode)}
                         className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${viewMode === tab.id
-                                ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white"
-                                : "bg-secondary"
+                            ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white"
+                            : "bg-secondary"
                             }`}
                     >
                         {tab.label}
@@ -342,7 +342,7 @@ export default function FinancePage() {
 
             {/* Add Expense Modal */}
             {showForm && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-card border border-border rounded-t-3xl md:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
                         <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
                             <h2 className="text-lg font-bold">💸 Add Expense</h2>
@@ -389,8 +389,8 @@ export default function FinancePage() {
                                             type="button"
                                             onClick={() => setFormCategory(cat.value)}
                                             className={`flex flex-col items-center gap-1 p-2 rounded-xl text-center transition-all ${formCategory === cat.value
-                                                    ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white"
-                                                    : "bg-secondary"
+                                                ? "bg-gradient-to-br from-emerald-500 to-green-600 text-white"
+                                                : "bg-secondary"
                                                 }`}
                                         >
                                             <span className="text-lg">{cat.emoji}</span>

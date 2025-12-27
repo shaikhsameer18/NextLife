@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ const QUALITY_EMOJIS = ["", "😴", "😕", "😐", "🙂", "😄"];
 const QUALITY_COLORS = ["", "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-green-500", "bg-emerald-500"];
 
 export default function SleepPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const { toast } = useToast();
     const [selectedDate, setSelectedDate] = useState(getToday());
     const [sleepLog, setSleepLog] = useState<SleepLog | null>(null);

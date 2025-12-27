@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { getToday } from "@/lib/utils";
 import {
@@ -16,7 +16,13 @@ import {
     TrendingUp,
     Flame,
     Sun,
-    ArrowRight,
+    BookOpen,
+    Dumbbell,
+    ListTodo,
+    Utensils,
+    Lightbulb,
+    Settings,
+    ChevronRight,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -30,15 +36,8 @@ interface TodayStats {
     expenses: number;
 }
 
-const QUICK_ACTIONS = [
-    { href: "/dashboard/habits", icon: CheckCircle2, label: "Log Habit", color: "from-green-500 to-emerald-600" },
-    { href: "/dashboard/prayer", icon: Moon, label: "Log Namaz", color: "from-purple-500 to-violet-600" },
-    { href: "/dashboard/water", icon: Droplets, label: "Add Water", color: "from-blue-500 to-cyan-600" },
-    { href: "/dashboard/finance", icon: Wallet, label: "Add Expense", color: "from-emerald-500 to-green-600" },
-];
-
 export default function DashboardPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const [stats, setStats] = useState<TodayStats>({
         habitsCompleted: 0, habitsTotal: 0, prayersCompleted: 0,
         sleepHours: 0, waterMl: 0, focusMinutes: 0, expenses: 0,
@@ -86,12 +85,15 @@ export default function DashboardPage() {
 
     useEffect(() => { loadStats(); }, [loadStats]);
 
-    const formatINR = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
+    const formatINR = (amount: number) => {
+        if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}k`;
+        return `₹${amount}`;
+    };
 
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
@@ -99,146 +101,134 @@ export default function DashboardPage() {
     const habitProgress = stats.habitsTotal > 0 ? (stats.habitsCompleted / stats.habitsTotal) * 100 : 0;
     const prayerProgress = (stats.prayersCompleted / 5) * 100;
     const waterProgress = Math.min((stats.waterMl / 2500) * 100, 100);
+    const overallProgress = Math.round((habitProgress + prayerProgress + waterProgress) / 3);
 
     return (
-        <div className="space-y-6 pb-24 md:pb-6">
-            {/* Greeting Header */}
-            <div className="bg-gradient-to-br from-violet-500/20 via-purple-500/10 to-fuchsia-500/20 border border-primary/20 rounded-2xl p-6">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-                            {greetingEmoji} {greeting},
-                        </h1>
-                        <h2 className="text-2xl md:text-3xl font-bold text-primary">{user?.name?.split(" ")[0]}!</h2>
-                        <p className="text-muted-foreground mt-1 flex items-center gap-2">
-                            <Sun className="w-4 h-4" />
-                            {format(new Date(), "EEEE, MMMM d, yyyy")}
-                        </p>
+        <div className="space-y-5 pb-28 md:pb-8">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMM d")}</p>
+                    <h1 className="text-xl font-bold mt-0.5">
+                        {greetingEmoji} {greeting}, {user?.name?.split(" ")[0]}!
+                    </h1>
+                </div>
+                <Link href="/dashboard/settings" className="p-2.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
+                    <Settings className="w-5 h-5 text-muted-foreground" />
+                </Link>
+            </div>
+
+            {/* Progress Card */}
+            <div className="bg-gradient-to-br from-primary/15 via-primary/10 to-primary/5 rounded-2xl p-4 border border-primary/20">
+                <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Today&apos;s Progress</span>
+                    <div className="flex items-center gap-1.5 text-primary">
+                        <Flame className="w-4 h-4" />
+                        <span className="font-bold">{overallProgress}%</span>
                     </div>
-                    <div className="flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-xl">
-                        <Flame className="w-5 h-5 text-orange-500" />
-                        <span className="font-bold text-primary">{Math.round((habitProgress + prayerProgress) / 2)}%</span>
-                    </div>
+                </div>
+                <div className="h-2 bg-primary/20 rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all duration-700"
+                        style={{ width: `${overallProgress}%` }}
+                    />
                 </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-4 gap-2 md:gap-4">
-                {QUICK_ACTIONS.map((action) => (
-                    <Link
-                        key={action.href}
-                        href={action.href}
-                        className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-xl md:rounded-2xl bg-card border-2 border-border hover:border-primary/50 transition-all group"
-                    >
-                        <div className={`p-2 md:p-3 rounded-lg md:rounded-xl bg-gradient-to-br ${action.color} text-white group-hover:scale-110 transition-transform shadow-lg`}>
-                            <action.icon className="w-4 h-4 md:w-5 md:h-5" />
-                        </div>
-                        <span className="text-[10px] md:text-xs font-medium text-center leading-tight">{action.label}</span>
-                    </Link>
-                ))}
+            {/* Main Stats - 2x2 Grid */}
+            <div className="grid grid-cols-2 gap-3">
+                <Link href="/dashboard/habits" className="p-4 rounded-2xl bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 hover:border-green-500/40 transition-all">
+                    <CheckCircle2 className="w-6 h-6 text-green-500 mb-2" />
+                    <p className="text-2xl font-bold">{stats.habitsCompleted}<span className="text-base text-muted-foreground">/{stats.habitsTotal}</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Habits Done</p>
+                </Link>
+
+                <Link href="/dashboard/prayer" className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20 hover:border-purple-500/40 transition-all">
+                    <Moon className="w-6 h-6 text-purple-500 mb-2" />
+                    <p className="text-2xl font-bold">{stats.prayersCompleted}<span className="text-base text-muted-foreground">/5</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Prayers</p>
+                </Link>
+
+                <Link href="/dashboard/water" className="p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20 hover:border-blue-500/40 transition-all">
+                    <Droplets className="w-6 h-6 text-blue-500 mb-2" />
+                    <p className="text-2xl font-bold">{(stats.waterMl / 1000).toFixed(1)}<span className="text-base text-muted-foreground">L</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Water</p>
+                </Link>
+
+                <Link href="/dashboard/finance" className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20 hover:border-emerald-500/40 transition-all">
+                    <Wallet className="w-6 h-6 text-emerald-500 mb-2" />
+                    <p className="text-2xl font-bold">{formatINR(stats.expenses)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Spent Today</p>
+                </Link>
             </div>
 
-            {/* Main Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                {/* Habits */}
-                <Link href="/dashboard/habits" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 hover:border-green-500/40 transition-all group">
-                    <div className="flex items-center justify-between mb-2 md:mb-3">
-                        <CheckCircle2 className="w-5 h-5 md:w-6 md:h-6 text-green-500" />
-                        <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="flex items-end justify-between">
-                        <div>
-                            <p className="text-2xl md:text-3xl font-bold">{stats.habitsCompleted}/{stats.habitsTotal}</p>
-                            <p className="text-xs md:text-sm text-muted-foreground">Habits</p>
-                        </div>
-                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-secondary flex items-center justify-center">
-                            <span className="text-xs md:text-sm font-bold text-green-500">{Math.round(habitProgress)}%</span>
-                        </div>
-                    </div>
-                </Link>
-
-                {/* Prayers */}
-                <Link href="/dashboard/prayer" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-gradient-to-br from-purple-500/10 to-violet-500/5 border border-purple-500/20 hover:border-purple-500/40 transition-all group">
-                    <div className="flex items-center justify-between mb-2 md:mb-3">
-                        <Moon className="w-5 h-5 md:w-6 md:h-6 text-purple-500" />
-                        <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <div className="flex items-end justify-between">
-                        <div>
-                            <p className="text-2xl md:text-3xl font-bold">{stats.prayersCompleted}/5</p>
-                            <p className="text-xs md:text-sm text-muted-foreground">Namaz</p>
-                        </div>
-                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-secondary flex items-center justify-center">
-                            <span className="text-xs md:text-sm font-bold text-purple-500">{Math.round(prayerProgress)}%</span>
-                        </div>
-                    </div>
-                </Link>
-
-                {/* Sleep */}
-                <Link href="/dashboard/sleep" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-card border-2 border-border hover:border-indigo-500/40 transition-all group">
-                    <div className="flex items-center justify-between mb-2 md:mb-3">
-                        <Bed className="w-5 h-5 md:w-6 md:h-6 text-indigo-500" />
-                        <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className="text-2xl md:text-3xl font-bold">{stats.sleepHours.toFixed(1)}h</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Sleep</p>
-                </Link>
-
-                {/* Water */}
-                <Link href="/dashboard/water" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-card border-2 border-border hover:border-blue-500/40 transition-all group">
-                    <div className="flex items-center justify-between mb-2 md:mb-3">
-                        <Droplets className="w-5 h-5 md:w-6 md:h-6 text-blue-500" />
-                        <ArrowRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                    <p className="text-2xl md:text-3xl font-bold">{(stats.waterMl / 1000).toFixed(1)}L</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Water</p>
-                    <div className="mt-2 h-1.5 bg-secondary rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full" style={{ width: `${waterProgress}%` }} />
-                    </div>
-                </Link>
+            {/* Quick Actions */}
+            <div>
+                <h2 className="text-sm font-semibold text-muted-foreground mb-3">Quick Actions</h2>
+                <div className="grid grid-cols-4 gap-2">
+                    {[
+                        { href: "/dashboard/fitness", icon: Dumbbell, label: "Fitness", color: "text-teal-500" },
+                        { href: "/dashboard/sleep", icon: Bed, label: "Sleep", color: "text-indigo-500" },
+                        { href: "/dashboard/tasks", icon: ListTodo, label: "Tasks", color: "text-red-500" },
+                        { href: "/dashboard/journal", icon: BookOpen, label: "Journal", color: "text-pink-500" },
+                        { href: "/dashboard/pomodoro", icon: Timer, label: "Focus", color: "text-yellow-500" },
+                        { href: "/dashboard/meals", icon: Utensils, label: "Meals", color: "text-orange-500" },
+                        { href: "/dashboard/vault", icon: Lightbulb, label: "Vault", color: "text-cyan-500" },
+                        { href: "/dashboard/insights", icon: TrendingUp, label: "Insights", color: "text-violet-500" },
+                    ].map((item) => (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-card border border-border hover:border-primary/30 hover:bg-primary/5 transition-all"
+                        >
+                            <item.icon className={`w-5 h-5 ${item.color}`} />
+                            <span className="text-[10px] font-medium">{item.label}</span>
+                        </Link>
+                    ))}
+                </div>
             </div>
 
             {/* Secondary Stats */}
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-                <Link href="/dashboard/pomodoro" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-card border-2 border-border hover:border-yellow-500/40 transition-all">
-                    <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                        <Timer className="w-5 h-5 md:w-6 md:h-6 text-yellow-500" />
-                        <span className="font-semibold text-sm md:text-base">Focus Time</span>
+            <div className="grid grid-cols-2 gap-3">
+                <Link href="/dashboard/sleep" className="p-3 rounded-xl bg-card border border-border hover:border-indigo-500/40 transition-all">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Bed className="w-4 h-4 text-indigo-500" />
+                        <span className="text-xs font-medium">Sleep</span>
                     </div>
-                    <p className="text-xl md:text-2xl font-bold">{Math.floor(stats.focusMinutes / 60)}h {stats.focusMinutes % 60}m</p>
+                    <p className="text-lg font-bold">{stats.sleepHours.toFixed(1)}h</p>
                 </Link>
-
-                <Link href="/dashboard/finance" className="p-4 md:p-5 rounded-xl md:rounded-2xl bg-card border-2 border-border hover:border-emerald-500/40 transition-all">
-                    <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-                        <Wallet className="w-5 h-5 md:w-6 md:h-6 text-emerald-500" />
-                        <span className="font-semibold text-sm md:text-base">Today&apos;s Spend</span>
+                <Link href="/dashboard/pomodoro" className="p-3 rounded-xl bg-card border border-border hover:border-yellow-500/40 transition-all">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Timer className="w-4 h-4 text-yellow-500" />
+                        <span className="text-xs font-medium">Focus</span>
                     </div>
-                    <p className="text-xl md:text-2xl font-bold">{formatINR(stats.expenses)}</p>
+                    <p className="text-lg font-bold">{Math.floor(stats.focusMinutes / 60)}h {stats.focusMinutes % 60}m</p>
                 </Link>
             </div>
 
             {/* Insights CTA */}
-            <Link href="/dashboard/insights" className="block p-5 md:p-6 rounded-xl md:rounded-2xl bg-gradient-to-r from-violet-500/20 via-purple-500/15 to-fuchsia-500/20 border border-primary/20 hover:border-primary/40 transition-all group">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 md:gap-4">
-                        <div className="p-2.5 md:p-3 rounded-lg md:rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white">
-                            <TrendingUp className="w-5 h-5 md:w-6 md:h-6" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-base md:text-lg">View Your Insights</h3>
-                            <p className="text-xs md:text-sm text-muted-foreground">See your weekly trends and productivity score</p>
-                        </div>
+            <Link
+                href="/dashboard/insights"
+                className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 hover:border-violet-500/40 transition-all"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-violet-500 text-white">
+                        <TrendingUp className="w-5 h-5" />
                     </div>
-                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    <div>
+                        <p className="font-semibold text-sm">View Insights</p>
+                        <p className="text-xs text-muted-foreground">See your weekly trends</p>
+                    </div>
                 </div>
+                <ChevronRight className="w-5 h-5 text-muted-foreground" />
             </Link>
 
-            {/* Motivational Message */}
-            <div className="text-center py-4 md:py-6">
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs md:text-sm font-medium">
-                    <Sparkles className="w-4 h-4" />
-                    Keep going, {user?.name?.split(" ")[0]}! You&apos;re doing great! 💪
-                </div>
+            {/* Motivation */}
+            <div className="text-center">
+                <p className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Keep pushing, you&apos;re doing amazing! 💪
+                </p>
             </div>
         </div>
     );

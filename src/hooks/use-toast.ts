@@ -136,6 +136,15 @@ function dispatch(action: Action) {
 type Toast = Omit<ToasterToast, "id">;
 
 function toast({ ...props }: Toast) {
+    // Skip toasts on mobile devices
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+        return {
+            id: "",
+            dismiss: () => { },
+            update: () => { },
+        };
+    }
+
     const id = genId();
 
     const update = (props: ToasterToast) =>

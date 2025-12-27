@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday, getCurrentTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ const DEFAULT_SETTINGS = {
 };
 
 export default function PomodoroPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const { toast } = useToast();
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -225,7 +225,7 @@ export default function PomodoroPage() {
 
             {/* Settings Modal */}
             {showSettings && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95">
                         <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
                             <h2 className="text-lg font-bold">⚙️ Timer Settings</h2>

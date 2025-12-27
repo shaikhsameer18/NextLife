@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { getToday, generateId } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
 import type { Habit, HabitLog } from "@/types";
 import { Plus, CheckCircle2, Trash2, Edit, Archive, ArchiveRestore, X, Flame, Target, List, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { format, parseISO, subDays, addDays } from "date-fns";
@@ -17,8 +16,7 @@ const WEEKDAYS_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 type ViewMode = "today" | "all" | "archived" | "history";
 
 export default function HabitsPage() {
-    const { user } = useAuthStore();
-    const { toast } = useToast();
+    const { user } = useUser();
     const [allHabits, setAllHabits] = useState<Habit[]>([]);
     const [todayLogs, setTodayLogs] = useState<Map<string, HabitLog>>(new Map());
     const [loading, setLoading] = useState(true);
@@ -94,11 +92,9 @@ export default function HabitsPage() {
             const now = Date.now();
             if (editingHabit) {
                 await db.habits.update(editingHabit.id, { name: formName.trim(), description: formDescription.trim() || undefined, color: formColor, icon: formIcon, targetDays: formDays, updatedAt: now });
-                toast({ title: "Habit updated! 🎯" });
             } else {
                 const habit: Habit = { id: generateId(), userId: user.id, name: formName.trim(), description: formDescription.trim() || undefined, frequency: "custom", targetDays: formDays, color: formColor, icon: formIcon, isArchived: false, order: allHabits.length, createdAt: now, updatedAt: now, syncStatus: "pending", version: 1 };
                 await db.habits.add(habit);
-                toast({ title: "New habit created! 🚀" });
             }
             setShowForm(false);
             loadData();
@@ -122,8 +118,8 @@ export default function HabitsPage() {
         }
     };
 
-    const deleteHabit = async (habitId: string) => { if (!user) return; try { const db = getUserDatabase(user.id); await db.habits.delete(habitId); await db.habitLogs.where("habitId").equals(habitId).delete(); toast({ title: "Habit deleted" }); loadData(); } catch (error) { console.error("Failed to delete habit:", error); } };
-    const toggleArchive = async (habitId: string, isArchived: boolean) => { if (!user) return; try { const db = getUserDatabase(user.id); await db.habits.update(habitId, { isArchived: !isArchived, updatedAt: Date.now() }); toast({ title: isArchived ? "Habit restored!" : "Habit archived" }); loadData(); } catch (error) { console.error("Failed to toggle archive:", error); } };
+    const deleteHabit = async (habitId: string) => { if (!user) return; try { const db = getUserDatabase(user.id); await db.habits.delete(habitId); await db.habitLogs.where("habitId").equals(habitId).delete(); loadData(); } catch (error) { console.error("Failed to delete habit:", error); } };
+    const toggleArchive = async (habitId: string, isArchived: boolean) => { if (!user) return; try { const db = getUserDatabase(user.id); await db.habits.update(habitId, { isArchived: !isArchived, updatedAt: Date.now() }); loadData(); } catch (error) { console.error("Failed to toggle archive:", error); } };
     const goToHistoryDate = (days: number) => { const newDate = days > 0 ? format(addDays(parseISO(historyDate), days), "yyyy-MM-dd") : format(subDays(parseISO(historyDate), Math.abs(days)), "yyyy-MM-dd"); if (newDate > today) return; setHistoryDate(newDate); };
 
     const completedCount = Array.from(currentLogs.values()).filter((l) => l.completed).length;
@@ -209,9 +205,9 @@ export default function HabitsPage() {
 
             {/* Form Modal */}
             {showForm && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
-                    <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[85vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                    <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border rounded-t-2xl">
                             <h2 className="text-lg font-bold">{editingHabit ? "Edit Habit" : "✨ New Habit"}</h2>
                             <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
                         </div>
@@ -220,7 +216,7 @@ export default function HabitsPage() {
                             <div><label className="block text-sm font-semibold mb-2">Days</label><div className="grid grid-cols-7 gap-1">{WEEKDAYS_FULL.map((day, i) => (<button key={day} type="button" onClick={() => toggleDay(i)} className={`py-2 rounded-lg font-medium text-xs transition-all ${formDays.includes(i) ? "bg-green-500 text-white" : "bg-secondary"}`}>{WEEKDAYS[i]}</button>))}</div></div>
                             <div><label className="block text-sm font-semibold mb-2">Icon</label><div className="grid grid-cols-10 gap-1">{HABIT_ICONS.map((icon) => (<button key={icon} type="button" onClick={() => setFormIcon(icon)} className={`w-8 h-8 rounded-lg flex items-center justify-center text-base transition-all ${formIcon === icon ? "bg-green-500/20 ring-2 ring-green-500" : "bg-secondary"}`}>{icon}</button>))}</div></div>
                             <div><label className="block text-sm font-semibold mb-2">Color</label><div className="flex flex-wrap gap-2">{HABIT_COLORS.map((color) => (<button key={color} type="button" onClick={() => setFormColor(color)} className={`w-7 h-7 rounded-full transition-all ${formColor === color ? "ring-4 ring-offset-2 ring-offset-background scale-110" : ""}`} style={{ backgroundColor: color, ["--tw-ring-color" as string]: color } as React.CSSProperties} />))}</div></div>
-                            <div className="flex gap-2 pt-2 pb-4">
+                            <div className="flex gap-2 pt-2 pb-2">
                                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-3 rounded-xl bg-secondary font-semibold">Cancel</button>
                                 <button type="submit" className="flex-1 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold">{editingHabit ? "Save" : "Create"}</button>
                             </div>

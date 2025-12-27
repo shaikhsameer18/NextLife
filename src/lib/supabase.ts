@@ -1,9 +1,9 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient, Session, User } from "@supabase/supabase-js";
 
-// These will need to be filled in with actual Supabase credentials
-// For now, we'll use placeholder values that can be set in environment variables
+// Supabase configuration
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 let supabase: SupabaseClient | null = null;
 
@@ -17,6 +17,7 @@ export function getSupabaseClient(): SupabaseClient | null {
             auth: {
                 persistSession: true,
                 autoRefreshToken: true,
+                detectSessionInUrl: true,
             },
         });
     }
@@ -26,6 +27,70 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 export function isSupabaseConfigured(): boolean {
     return Boolean(supabaseUrl && supabaseAnonKey);
+}
+
+// Google OAuth sign-in
+export async function signInWithGoogle(): Promise<{ success: boolean; error?: string }> {
+    const client = getSupabaseClient();
+    if (!client) {
+        return { success: false, error: "Supabase not configured" };
+    }
+
+    try {
+        const { error } = await client.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: `${siteUrl}/auth/callback`,
+            },
+        });
+
+        if (error) {
+            return { success: false, error: error.message };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Google sign-in error:", error);
+        return { success: false, error: "Failed to sign in with Google" };
+    }
+}
+
+// Sign out
+export async function signOut(): Promise<void> {
+    const client = getSupabaseClient();
+    if (client) {
+        await client.auth.signOut();
+    }
+}
+
+// Get current session
+export async function getSession(): Promise<Session | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+
+    const { data: { session } } = await client.auth.getSession();
+    return session;
+}
+
+// Get current user
+export async function getUser(): Promise<User | null> {
+    const client = getSupabaseClient();
+    if (!client) return null;
+
+    const { data: { user } } = await client.auth.getUser();
+    return user;
+}
+
+// Subscribe to auth state changes
+export function onAuthStateChange(callback: (session: Session | null) => void) {
+    const client = getSupabaseClient();
+    if (!client) return { unsubscribe: () => { } };
+
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+        callback(session);
+    });
+
+    return { unsubscribe: () => subscription.unsubscribe() };
 }
 
 // Types for cloud sync

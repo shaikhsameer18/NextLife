@@ -48,11 +48,12 @@ class UserDatabase extends Dexie {
     expenses!: Table<Expense>;
     budgets!: Table<Budget>;
     subscriptions!: Table<Subscription>;
+    fitness!: Table<{ id: string; date: string; weight?: number; steps?: number; workoutType?: string; workoutDuration?: number; caloriesBurned?: number; notes?: string; createdAt: string }>;
 
     constructor(userId: string) {
         super(`lifetracker-user-${userId}`);
 
-        this.version(1).stores({
+        this.version(2).stores({
             // Habits
             habits: "id, userId, name, createdAt, isArchived, order",
             habitLogs: "id, habitId, date, userId, createdAt",
@@ -86,6 +87,9 @@ class UserDatabase extends Dexie {
             expenses: "id, userId, date, category, createdAt",
             budgets: "id, userId, category, period, createdAt",
             subscriptions: "id, userId, category, isActive, nextBillingDate, createdAt",
+
+            // Fitness
+            fitness: "id, date, workoutType, createdAt",
         });
     }
 }

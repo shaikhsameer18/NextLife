@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { getToday } from "@/lib/utils";
 import { BarChart3, CheckCircle2, Moon, Bed, Droplets, Timer, TrendingUp, TrendingDown, Minus, Wallet, Download } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 
 export default function InsightsPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState<"week" | "month">("week");
     const [stats, setStats] = useState({ habitConsistency: 0, prayerConsistency: 0, avgSleep: 0, avgWater: 0, totalFocus: 0, totalSpent: 0, productivityScore: 0 });

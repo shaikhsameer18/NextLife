@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuthStore } from "@/stores/auth";
+import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ const MOODS = [
 ] as const;
 
 export default function JournalPage() {
-    const { user } = useAuthStore();
+    const { user } = useUser();
     const { toast } = useToast();
     const [entries, setEntries] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(true);
@@ -136,27 +136,37 @@ export default function JournalPage() {
                 </div>
             )}
 
-            {/* Entry Detail Modal - Bottom sheet style */}
+            {/* Entry Detail Modal - Book Style */}
             {selectedEntry && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
-                    <div className="bg-card border-t border-border rounded-t-2xl shadow-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-                        <div className="flex items-center justify-between p-4 border-b border-border">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-2xl">{getMoodEmoji(selectedEntry.mood)}</span>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                    <div className="bg-amber-50 dark:bg-amber-950/90 border-2 border-amber-200 dark:border-amber-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col relative">
+                        {/* Book spine effect */}
+                        <div className="absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-amber-300 dark:from-amber-700 to-transparent" />
+
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 pl-6 border-b border-amber-200 dark:border-amber-800">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <span className="text-3xl">{getMoodEmoji(selectedEntry.mood)}</span>
                                 <div className="min-w-0">
-                                    <p className="font-bold text-sm truncate">{selectedEntry.title || format(parseISO(selectedEntry.date), "MMM d, yyyy")}</p>
-                                    <p className="text-xs text-muted-foreground">{format(parseISO(selectedEntry.date), "EEEE, MMM d, yyyy")}</p>
+                                    <p className="font-bold text-amber-900 dark:text-amber-100 truncate">{selectedEntry.title || "Journal Entry"}</p>
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">{format(parseISO(selectedEntry.date), "EEEE, MMMM d, yyyy")}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                <button onClick={() => deleteEntry(selectedEntry.id)} className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
-                                <button onClick={() => setSelectedEntry(null)} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
+                                <button onClick={() => deleteEntry(selectedEntry.id)} className="p-2 rounded-lg hover:bg-red-500/10 text-amber-600 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                <button onClick={() => setSelectedEntry(null)} className="p-2 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800"><X className="w-5 h-5 text-amber-700 dark:text-amber-300" /></button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4">
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{selectedEntry.content}</p>
+
+                        {/* Content - Paper texture */}
+                        <div className="flex-1 overflow-y-auto p-6 pl-8" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 28px, rgba(0,0,0,0.03) 28px, rgba(0,0,0,0.03) 29px)' }}>
+                            <p className="whitespace-pre-wrap text-amber-900 dark:text-amber-100 leading-[29px] font-serif text-base">{selectedEntry.content}</p>
                             {selectedEntry.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-border">{selectedEntry.tags.map((tag) => (<span key={tag} className="px-2 py-1 rounded-full bg-pink-500/10 text-pink-600 dark:text-pink-400 text-xs">#{tag}</span>))}</div>
+                                <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-amber-200 dark:border-amber-800">
+                                    {selectedEntry.tags.map((tag) => (
+                                        <span key={tag} className="px-3 py-1 rounded-full bg-pink-500/20 text-pink-700 dark:text-pink-400 text-xs font-medium">#{tag}</span>
+                                    ))}
+                                </div>
                             )}
                         </div>
                     </div>
@@ -165,7 +175,7 @@ export default function JournalPage() {
 
             {/* New Entry Form Modal */}
             {showForm && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                     <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[90vh] overflow-y-auto">
                         <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
                             <h2 className="text-lg font-bold">📝 New Entry</h2>
