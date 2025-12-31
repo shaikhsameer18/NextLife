@@ -57,14 +57,21 @@ Get comprehensive analytics on your productivity, habits, sleep, water intake, a
 
 ## 📸 Screenshots
 
-<!-- Add your screenshots here -->
-| Dashboard | Habits | Journal |
-|-----------|--------|---------|
-| ![Dashboard](./screenshots/dashboard.png) | ![Habits](./screenshots/habits.png) | ![Journal](./screenshots/journal.png) |
+<div align="center">
 
-| Finance | Sleep | Insights |
-|---------|-------|----------|
-| ![Finance](./screenshots/finance.png) | ![Sleep](./screenshots/sleep.png) | ![Insights](./screenshots/insights.png) |
+| Dashboard | Habits |
+|-----------|--------|
+| ![Dashboard](./public/dashboard.png) | ![Habits](./public/habit.png) |
+
+| Finance | Sleep |
+|---------|-------|
+| ![Finance](./public/finance.png) | ![Sleep](./public/sleep.png) |
+
+| Vault | Insights |
+|-------|----------|
+| ![Vault](./public/vault.png) | ![Insights](./public/insights.png) |
+
+</div>
 
 ---
 
