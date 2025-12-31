@@ -162,31 +162,31 @@ export default function FinancePage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-amber-600 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-4 pb-20 md:pb-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 text-white">
+        <div className="space-y-5 pb-20 md:pb-6">
+            {/* Header - Muted Gold Matte */}
+            <div className="flex items-center justify-between relative">
+                <h1 className="text-2xl font-bold flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-2xl bg-gradient-to-br from-amber-600 to-yellow-700 text-white shadow-lg">
                         <Wallet className="w-5 h-5" />
                     </div>
-                    Money
+                    <span className="text-slate-800 dark:text-slate-100">Money</span>
                 </h1>
                 <button
                     onClick={() => setShowForm(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold text-sm"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-700 text-white font-semibold text-sm shadow-lg active:scale-95 transition-transform"
                 >
                     <Plus className="w-4 h-4" />
                     Add
                 </button>
             </div>
 
-            {/* View Mode Tabs */}
+            {/* View Mode Tabs - Matte */}
             <div className="flex gap-2">
                 {[
                     { id: "today", label: "Today" },
@@ -196,9 +196,9 @@ export default function FinancePage() {
                     <button
                         key={tab.id}
                         onClick={() => setViewMode(tab.id as ViewMode)}
-                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${viewMode === tab.id
-                            ? "bg-gradient-to-r from-emerald-500 to-green-600 text-white"
-                            : "bg-secondary"
+                        className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${viewMode === tab.id
+                            ? "bg-gradient-to-r from-amber-600 to-yellow-700 text-white shadow-lg"
+                            : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40"
                             }`}
                     >
                         {tab.label}
@@ -206,43 +206,43 @@ export default function FinancePage() {
                 ))}
             </div>
 
-            {/* Date Navigation (for daily view) */}
+            {/* Date Navigation (for daily view) - Matte */}
             {viewMode === "daily" && (
-                <div className="flex items-center justify-between bg-card border-2 border-border rounded-xl p-3">
-                    <button onClick={() => goToDate(-1)} className="p-2 rounded-lg hover:bg-secondary">
-                        <ChevronLeft className="w-5 h-5" />
+                <div className="flex items-center justify-between bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 rounded-2xl p-3 border border-amber-200 dark:border-amber-800">
+                    <button onClick={() => goToDate(-1)} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-amber-900/50 transition-colors">
+                        <ChevronLeft className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                     </button>
                     <div className="text-center">
-                        <p className="font-semibold">{format(parseISO(selectedDate), "EEEE, MMM d")}</p>
-                        {selectedDate === today && <span className="text-xs text-emerald-500">Today</span>}
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">{format(parseISO(selectedDate), "EEEE, MMM d")}</p>
+                        {selectedDate === today && <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Today</span>}
                     </div>
                     <button
                         onClick={() => goToDate(1)}
                         disabled={selectedDate >= today}
-                        className="p-2 rounded-lg hover:bg-secondary disabled:opacity-30"
+                        className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-amber-900/50 disabled:opacity-30 transition-colors"
                     >
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                     </button>
                 </div>
             )}
 
-            {/* Stats */}
+            {/* Stats - Matte */}
             <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/20 border border-amber-200 dark:border-amber-800">
                     <div className="flex items-center gap-2 mb-1">
-                        <IndianRupee className="w-4 h-4 text-emerald-500" />
-                        <span className="text-xs text-muted-foreground">
+                        <IndianRupee className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-sm text-amber-700 dark:text-amber-400">
                             {viewMode === "monthly" ? "This Month" : viewMode === "daily" ? "This Day" : "Today"}
                         </span>
                     </div>
-                    <p className="text-xl font-bold">{formatINR(currentTotal)}</p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{formatINR(currentTotal)}</p>
                 </div>
-                <div className="p-4 rounded-xl bg-card border-2 border-border">
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/50 dark:to-slate-700/30 border border-slate-200 dark:border-slate-700">
                     <div className="flex items-center gap-2 mb-1">
-                        <Calendar className="w-4 h-4 text-blue-500" />
-                        <span className="text-xs text-muted-foreground">Month Total</span>
+                        <Calendar className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                        <span className="text-sm text-slate-600 dark:text-slate-400">Month Total</span>
                     </div>
-                    <p className="text-xl font-bold">{formatINR(monthTotal)}</p>
+                    <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{formatINR(monthTotal)}</p>
                 </div>
             </div>
 
@@ -340,13 +340,13 @@ export default function FinancePage() {
                 )}
             </div>
 
-            {/* Add Expense Modal */}
+            {/* Add Expense Modal - Gold Theme */}
             {showForm && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-card border border-border rounded-t-3xl md:rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
-                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
-                            <h2 className="text-lg font-bold">💸 Add Expense</h2>
-                            <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-secondary">
+                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setShowForm(false)}>
+                    <div className="bg-card border-t-4 border-amber-500 rounded-t-3xl md:rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="sticky top-0 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/30 flex items-center justify-between p-4 border-b border-amber-200 dark:border-amber-800">
+                            <h2 className="text-lg font-bold text-amber-800 dark:text-amber-200">💸 Add Expense</h2>
+                            <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-600">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>

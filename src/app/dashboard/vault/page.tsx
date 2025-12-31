@@ -1,16 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { VaultItem } from "@/types";
-import { Lightbulb, Plus, Search, FileText, Link2, Sparkles, Star, StarOff, Trash2, X, ExternalLink, Brain } from "lucide-react";
+import { Lightbulb, Plus, Search, FileText, Link2, Sparkles, Star, StarOff, Trash2, X, ExternalLink, Brain, Lock, KeyRound, Shield, ShieldCheck, Delete } from "lucide-react";
 import { format } from "date-fns";
 
 type ItemType = "note" | "link" | "idea";
 type FilterType = "all" | ItemType | "favorites";
+
+// Simple hash function for passcode (not for high security, just basic protection)
+const hashPasscode = (pin: string): string => {
+    let hash = 0;
+    for (let i = 0; i < pin.length; i++) {
+        const char = pin.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return hash.toString(36);
+};
 
 export default function VaultPage() {
     const { user } = useUser();
@@ -22,11 +33,82 @@ export default function VaultPage() {
     const [filter, setFilter] = useState<FilterType>("all");
     const [selectedItem, setSelectedItem] = useState<VaultItem | null>(null);
 
+    // Passcode protection
+    const [isUnlocked, setIsUnlocked] = useState(false);
+    const [passcodeInput, setPasscodeInput] = useState("");
+    const [isSettingPasscode, setIsSettingPasscode] = useState(false);
+    const [confirmPasscode, setConfirmPasscode] = useState("");
+    const [passcodeError, setPasscodeError] = useState("");
+    const [hasPasscode, setHasPasscode] = useState(false);
+    const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
     const [formType, setFormType] = useState<ItemType>("note");
     const [formTitle, setFormTitle] = useState("");
     const [formContent, setFormContent] = useState("");
     const [formUrl, setFormUrl] = useState("");
     const [formTags, setFormTags] = useState("");
+
+    // Track if this is initial mount
+    const hasInitialized = useRef(false);
+
+    // Check for existing passcode on mount - only lock on initial page load
+    useEffect(() => {
+        if (user && !hasInitialized.current) {
+            hasInitialized.current = true;
+            const storedHash = localStorage.getItem(`vault_passcode_${user.id}`);
+            setHasPasscode(!!storedHash);
+            // Always require PIN on page visit (initial mount only)
+            setIsUnlocked(false);
+        }
+    }, [user]);
+
+    // Handle passcode input
+    const handlePasscodeDigit = (digit: string) => {
+        if (passcodeInput.length < 4) {
+            const newInput = passcodeInput + digit;
+            setPasscodeInput(newInput);
+            setPasscodeError("");
+
+            if (newInput.length === 4) {
+                if (isSettingPasscode) {
+                    if (!confirmPasscode) {
+                        setConfirmPasscode(newInput);
+                        setPasscodeInput("");
+                    } else {
+                        if (newInput === confirmPasscode) {
+                            // Save passcode
+                            localStorage.setItem(`vault_passcode_${user?.id}`, hashPasscode(newInput));
+                            setIsUnlocked(true);
+                            setHasPasscode(true);
+                            sessionStorage.setItem(`vault_unlocked_${user?.id}`, "true");
+                            toast({ title: "Vault passcode set! 🔐" });
+                            setIsSettingPasscode(false);
+                            setConfirmPasscode("");
+                        } else {
+                            setPasscodeError("PINs don't match. Try again.");
+                            setConfirmPasscode("");
+                        }
+                        setPasscodeInput("");
+                    }
+                } else {
+                    // Verify passcode
+                    const storedHash = localStorage.getItem(`vault_passcode_${user?.id}`);
+                    if (hashPasscode(newInput) === storedHash) {
+                        setIsUnlocked(true);
+                        sessionStorage.setItem(`vault_unlocked_${user?.id}`, "true");
+                    } else {
+                        setPasscodeError("Wrong PIN. Try again.");
+                    }
+                    setPasscodeInput("");
+                }
+            }
+        }
+    };
+
+    const handleBackspace = () => {
+        setPasscodeInput(prev => prev.slice(0, -1));
+        setPasscodeError("");
+    };
 
     const loadItems = useCallback(async () => {
         if (!user) return;
@@ -42,7 +124,7 @@ export default function VaultPage() {
         }
     }, [user]);
 
-    useEffect(() => { loadItems(); }, [loadItems]);
+    useEffect(() => { if (isUnlocked) loadItems(); }, [loadItems, isUnlocked]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,6 +164,118 @@ export default function VaultPage() {
 
     const getTypeIcon = (type: ItemType) => { switch (type) { case "note": return FileText; case "link": return Link2; case "idea": return Sparkles; } };
     const getTypeStyle = (type: ItemType) => { switch (type) { case "note": return { gradient: "from-blue-500 to-cyan-500" }; case "link": return { gradient: "from-green-500 to-emerald-500" }; case "idea": return { gradient: "from-purple-500 to-pink-500" }; } };
+
+    // Show lock screen if not unlocked
+    if (!isUnlocked && (hasPasscode || isSettingPasscode)) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center p-6">
+                <div className="w-full max-w-xs space-y-6">
+                    {/* Lock Icon */}
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                            {isSettingPasscode ? <ShieldCheck className="w-10 h-10 text-white" /> : <Lock className="w-10 h-10 text-white" />}
+                        </div>
+                        <h1 className="text-xl font-bold">
+                            {isSettingPasscode ? (confirmPasscode ? "Confirm PIN" : "Set PIN") : "Enter PIN"}
+                        </h1>
+                        <p className="text-sm text-muted-foreground text-center">
+                            {isSettingPasscode
+                                ? (confirmPasscode ? "Enter the PIN again to confirm" : "Create a 4-digit PIN to protect your vault")
+                                : "Enter your 4-digit PIN to unlock"
+                            }
+                        </p>
+                    </div>
+
+                    {/* PIN Display */}
+                    <div className="flex justify-center gap-3">
+                        {[0, 1, 2, 3].map((i) => (
+                            <div
+                                key={i}
+                                className={`w-14 h-14 rounded-xl border-2 flex items-center justify-center text-2xl font-bold transition-all ${i < passcodeInput.length
+                                    ? "border-cyan-500 bg-cyan-500/10"
+                                    : "border-border bg-secondary"
+                                    }`}
+                            >
+                                {i < passcodeInput.length ? "●" : ""}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Error Message */}
+                    {passcodeError && (
+                        <p className="text-sm text-red-500 text-center">{passcodeError}</p>
+                    )}
+
+                    {/* Number Pad */}
+                    <div className="grid grid-cols-3 gap-3">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, null, 0, "del"].map((digit, i) => (
+                            digit === null ? (
+                                <div key={i} />
+                            ) : digit === "del" ? (
+                                <button
+                                    key={i}
+                                    onClick={handleBackspace}
+                                    className="h-14 rounded-xl bg-secondary hover:bg-secondary/80 flex items-center justify-center transition-all active:scale-95"
+                                >
+                                    <Delete className="w-5 h-5" />
+                                </button>
+                            ) : (
+                                <button
+                                    key={i}
+                                    onClick={() => handlePasscodeDigit(digit.toString())}
+                                    className="h-14 rounded-xl bg-card border-2 border-border hover:border-cyan-500 text-xl font-bold transition-all active:scale-95"
+                                >
+                                    {digit}
+                                </button>
+                            )
+                        ))}
+                    </div>
+
+                    {/* Skip setup option */}
+                    {isSettingPasscode && !confirmPasscode && (
+                        <button
+                            onClick={() => { setIsSettingPasscode(false); setIsUnlocked(true); }}
+                            className="w-full py-2 text-sm text-muted-foreground hover:text-foreground"
+                        >
+                            Skip for now
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Prompt to set passcode on first use
+    if (!hasPasscode && !isUnlocked && user) {
+        return (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center p-6">
+                <div className="w-full max-w-sm space-y-6 text-center">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-600/20 flex items-center justify-center mx-auto">
+                        <Shield className="w-12 h-12 text-cyan-500" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold mb-2">Protect Your Vault</h1>
+                        <p className="text-muted-foreground">Set a 4-digit PIN to keep your notes, links, and ideas secure.</p>
+                    </div>
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => setIsSettingPasscode(true)}
+                            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold flex items-center justify-center gap-2"
+                        >
+                            <KeyRound className="w-5 h-5" />
+                            Set PIN
+                        </button>
+                        <button
+                            onClick={() => setIsUnlocked(true)}
+                            className="w-full py-3 rounded-xl bg-secondary font-medium"
+                        >
+                            Skip for now
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>);
@@ -151,29 +345,29 @@ export default function VaultPage() {
                 </div>
             )}
 
-            {/* Item Detail Modal - Bottom sheet */}
+            {/* Item Detail Modal - Centered Popup */}
             {selectedItem && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end justify-center z-50">
-                    <div className="bg-card border-t border-border rounded-t-2xl shadow-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-                        <div className="flex items-center justify-between p-4 border-b border-border">
-                            <div className="flex items-center gap-2 min-w-0">
+                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setSelectedItem(null)}>
+                    <div className="bg-card border-t-4 border-cyan-500 rounded-2xl shadow-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-gradient-to-r from-cyan-50 to-blue-50 dark:from-cyan-950/40 dark:to-blue-950/30 flex items-center justify-between p-4 border-b border-cyan-200 dark:border-cyan-800">
+                            <div className="flex items-center gap-3 min-w-0">
                                 <div className={`p-2 rounded-lg bg-gradient-to-br ${getTypeStyle(selectedItem.type).gradient} text-white`}>
                                     {(() => { const Icon = getTypeIcon(selectedItem.type); return <Icon className="w-4 h-4" />; })()}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="font-bold text-sm truncate">{selectedItem.title}</p>
-                                    <p className="text-xs text-muted-foreground capitalize">{selectedItem.type} • {format(selectedItem.createdAt, "MMM d, yyyy")}</p>
+                                    <p className="font-bold text-cyan-800 dark:text-cyan-200 truncate">{selectedItem.title}</p>
+                                    <p className="text-xs text-cyan-600 dark:text-cyan-400 capitalize">{selectedItem.type} • {format(selectedItem.createdAt, "MMM d, yyyy")}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setSelectedItem(null)} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
+                            <button onClick={() => setSelectedItem(null)} className="p-2 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-cyan-600"><X className="w-5 h-5" /></button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4">
+                        <div className="flex-1 overflow-y-auto p-5">
                             {selectedItem.type === "link" && selectedItem.url && (
-                                <a href={selectedItem.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-cyan-500 hover:underline mb-3 text-sm"><ExternalLink className="w-3 h-3" />Open Link</a>
+                                <a href={selectedItem.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-cyan-500 hover:underline mb-4 text-sm font-medium"><ExternalLink className="w-4 h-4" />Open Link</a>
                             )}
-                            <p className="whitespace-pre-wrap text-sm leading-relaxed">{selectedItem.content}</p>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-200">{selectedItem.content}</p>
                             {selectedItem.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-border">{selectedItem.tags.map((tag) => (<span key={tag} className="px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 text-xs">#{tag}</span>))}</div>
+                                <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">{selectedItem.tags.map((tag) => (<span key={tag} className="px-2.5 py-1 rounded-full bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 text-xs font-medium">#{tag}</span>))}</div>
                             )}
                         </div>
                     </div>

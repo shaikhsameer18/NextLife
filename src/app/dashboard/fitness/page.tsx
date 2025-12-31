@@ -41,6 +41,9 @@ interface MuscleExercise {
     reps: number;
     weight: number;
     muscleGroup: string;
+    // Cardio-specific fields
+    duration?: number;  // in minutes
+    distance?: number;  // in km
 }
 
 const MUSCLE_GROUPS = [
@@ -85,6 +88,8 @@ export default function FitnessPage() {
         sets: 3,
         reps: 10,
         weight: 0,
+        duration: 0,  // for cardio
+        distance: 0,   // for cardio
     });
 
     const loadEntries = useCallback(async () => {
@@ -106,14 +111,20 @@ export default function FitnessPage() {
 
     const addExercise = () => {
         if (!currentExercise.name || !selectedMuscleGroup) return;
-        setExercises([
-            ...exercises,
-            {
-                ...currentExercise,
-                muscleGroup: selectedMuscleGroup,
-            },
-        ]);
-        setCurrentExercise({ name: "", sets: 3, reps: 10, weight: 0 });
+
+        const isCardio = selectedMuscleGroup === "cardio";
+        const newExercise: MuscleExercise = {
+            name: currentExercise.name,
+            muscleGroup: selectedMuscleGroup,
+            sets: isCardio ? 0 : currentExercise.sets,
+            reps: isCardio ? 0 : currentExercise.reps,
+            weight: isCardio ? 0 : currentExercise.weight,
+            duration: isCardio ? currentExercise.duration : undefined,
+            distance: isCardio ? currentExercise.distance : undefined,
+        };
+
+        setExercises([...exercises, newExercise]);
+        setCurrentExercise({ name: "", sets: 3, reps: 10, weight: 0, duration: 0, distance: 0 });
     };
 
     const removeExercise = (index: number) => {
@@ -206,27 +217,27 @@ export default function FitnessPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
         <div className="space-y-6 pb-24 md:pb-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            {/* Header - Olive/Stone Matte */}
+            <div className="flex items-center justify-between relative">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white">
+                        <div className="p-2.5 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white shadow-lg">
                             <Dumbbell className="w-6 h-6" />
                         </div>
-                        Gym Tracker
+                        <span className="text-slate-800 dark:text-slate-100">Gym Tracker</span>
                     </h1>
-                    <p className="text-muted-foreground mt-1">New Year, New You 🎯</p>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">New Year, New You 🎯</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-semibold shadow-lg shadow-teal-500/25 hover:scale-105 transition-transform"
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-700 text-white font-semibold shadow-lg active:scale-95 transition-transform"
                 >
                     <Plus className="w-5 h-5" />
                     <span className="hidden md:inline">Log Workout</span>
@@ -244,35 +255,35 @@ export default function FitnessPage() {
                 </div>
             )}
 
-            {/* Stats Grid */}
+            {/* Stats Grid - Matte */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-card border-2 border-border rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-800/50 dark:to-stone-800/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
                         <Scale className="w-4 h-4" />
                         <span className="text-sm">Weight</span>
                     </div>
-                    <p className="text-2xl font-bold">{todayEntry?.weight || entries[0]?.weight || "--"} <span className="text-sm text-muted-foreground">kg</span></p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{todayEntry?.weight || entries[0]?.weight || "--"} <span className="text-sm text-slate-500">kg</span></p>
                 </div>
-                <div className="bg-card border-2 border-border rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-1">
                         <Trophy className="w-4 h-4" />
                         <span className="text-sm">Streak</span>
                     </div>
-                    <p className="text-2xl font-bold text-orange-500">{streak} <span className="text-sm">days</span></p>
+                    <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{streak} <span className="text-sm">days</span></p>
                 </div>
-                <div className="bg-card border-2 border-border rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <div className="bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/20 border border-teal-200 dark:border-teal-800 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 mb-1">
                         <Zap className="w-4 h-4" />
                         <span className="text-sm">Workouts (7d)</span>
                     </div>
-                    <p className="text-2xl font-bold text-teal-500">{totalWorkouts}</p>
+                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{totalWorkouts}</p>
                 </div>
-                <div className="bg-card border-2 border-border rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-800/50 dark:to-stone-800/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
                         <Activity className="w-4 h-4" />
                         <span className="text-sm">Total Sets</span>
                     </div>
-                    <p className="text-2xl font-bold">{totalSets}</p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{totalSets}</p>
                 </div>
             </div>
 
@@ -412,7 +423,9 @@ export default function FitnessPage() {
                                     <div className="flex flex-wrap gap-2">
                                         {entry.muscleExercises.map((ex, i) => (
                                             <span key={i} className="text-xs px-2 py-1 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                                                {ex.name} • {ex.sets}×{ex.reps} @ {ex.weight}kg
+                                                {ex.name} • {ex.muscleGroup === "cardio"
+                                                    ? `${ex.duration || 0}min${ex.distance ? ` / ${ex.distance}km` : ""}`
+                                                    : `${ex.sets}×${ex.reps} @ ${ex.weight}kg`}
                                             </span>
                                         ))}
                                     </div>
@@ -578,8 +591,8 @@ export default function FitnessPage() {
                                                         <label className="text-xs font-medium mb-1 block">Duration (min)</label>
                                                         <input
                                                             type="number"
-                                                            value={currentExercise.sets}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, sets: parseInt(e.target.value) || 0 })}
+                                                            value={currentExercise.duration || ""}
+                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, duration: parseInt(e.target.value) || 0 })}
                                                             placeholder="30"
                                                             className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
                                                         />
@@ -589,8 +602,8 @@ export default function FitnessPage() {
                                                         <input
                                                             type="number"
                                                             step="0.1"
-                                                            value={currentExercise.weight}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, weight: parseFloat(e.target.value) || 0 })}
+                                                            value={currentExercise.distance || ""}
+                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, distance: parseFloat(e.target.value) || 0 })}
                                                             placeholder="5"
                                                             className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
                                                         />
@@ -647,7 +660,9 @@ export default function FitnessPage() {
                                                     <div>
                                                         <span className="font-medium">{ex.name}</span>
                                                         <span className="text-sm text-muted-foreground ml-2">
-                                                            {ex.sets}×{ex.reps} @ {ex.weight}kg
+                                                            {ex.muscleGroup === "cardio"
+                                                                ? `${ex.duration || 0}min${ex.distance ? ` / ${ex.distance}km` : ""}`
+                                                                : `${ex.sets}×${ex.reps} @ ${ex.weight}kg`}
                                                         </span>
                                                     </div>
                                                     <button onClick={() => removeExercise(i)} className="p-1 hover:bg-red-500/20 rounded">

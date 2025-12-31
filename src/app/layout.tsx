@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const poppins = Poppins({
+    subsets: ["latin"],
+    variable: "--font-poppins",
+    weight: ["300", "400", "500", "600", "700", "800"],
+});
 
 export const metadata: Metadata = {
     title: "NextLife - Your Personal Life Buddy",
@@ -30,7 +34,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     themeColor: [
         { media: "(prefers-color-scheme: light)", color: "#7c3aed" },
-        { media: "(prefers-color-scheme: dark)", color: "#1e1b4b" },
+        { media: "(prefers-color-scheme: dark)", color: "#0f0f14" },
     ],
     width: "device-width",
     initialScale: 1,
@@ -50,7 +54,7 @@ export default function RootLayout({
                 <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
                 <link rel="apple-touch-icon" href="/icons/icon-192.png" />
             </head>
-            <body className={`${inter.variable} font-sans antialiased`}>
+            <body className={`${poppins.variable} font-sans antialiased`}>
                 <Providers>{children}</Providers>
             </body>
         </html>

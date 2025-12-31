@@ -86,85 +86,84 @@ export default function JournalPage() {
     const getMoodEmoji = (mood: number) => MOODS.find((m) => m.value === mood)?.emoji || "😐";
 
     if (loading) {
-        return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-pink-500 border-t-transparent rounded-full animate-spin" /></div>);
+        return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-slate-400 border-t-transparent rounded-full animate-spin" /></div>);
     }
 
     return (
-        <div className="space-y-4 pb-24 md:pb-6 overflow-x-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between gap-2">
+        <div className="space-y-5 pb-24 md:pb-6 overflow-x-hidden">
+
+            {/* Header - Diary Style */}
+            <div className="flex items-center justify-between gap-2 relative">
                 <div>
-                    <h1 className="text-lg md:text-2xl font-bold flex items-center gap-2">
-                        <div className="p-1.5 md:p-2 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 text-white"><BookOpen className="w-4 h-4 md:w-5 md:h-5" /></div>
-                        Journal
+                    <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2.5">
+                        <div className="p-2 md:p-2.5 rounded-2xl bg-gradient-to-br from-slate-600 to-slate-700 text-white shadow-lg"><BookOpen className="w-5 h-5 md:w-6 md:h-6" /></div>
+                        <span className="text-slate-800 dark:text-slate-100">Journal</span>
                     </h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">Your thoughts & feelings</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Your thoughts & reflections</p>
                 </div>
-                <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-rose-600 text-white font-semibold text-sm">
+                <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-slate-600 to-slate-700 text-white font-semibold text-sm shadow-lg active:scale-95 transition-transform">
                     <Plus className="w-4 h-4" /><span>New</span>
                 </button>
             </div>
 
-            {/* Search */}
+            {/* Search - Clean Diary Style */}
             <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search..." className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-card border border-border focus:border-pink-500 outline-none text-sm" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search entries..." className="w-full pl-12 pr-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-blue-300 dark:focus:border-blue-600 outline-none text-base text-slate-800 dark:text-slate-100 placeholder:text-slate-400 shadow-sm" />
             </div>
 
-            {/* Entries */}
             {filteredEntries.length === 0 ? (
-                <div className="text-center py-12">
-                    <div className="w-16 h-16 rounded-full bg-pink-500/20 flex items-center justify-center mx-auto mb-3"><BookOpen className="w-8 h-8 text-pink-500/50" /></div>
-                    <h3 className="font-semibold mb-1">{searchQuery ? "No matching entries" : "No entries yet"}</h3>
-                    <p className="text-muted-foreground text-sm">{searchQuery ? "Try different search" : "Start writing!"}</p>
+                <div className="text-center py-16 bg-card rounded-2xl border border-border">
+                    <div className="w-20 h-20 rounded-full bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center mx-auto mb-4"><BookOpen className="w-10 h-10 text-blue-400" /></div>
+                    <h3 className="font-bold text-lg text-slate-700 dark:text-slate-200 mb-1">{searchQuery ? "No matching entries" : "Start Your Journal"}</h3>
+                    <p className="text-slate-500 dark:text-slate-400">{searchQuery ? "Try a different search" : "Capture your thoughts & memories"}</p>
                 </div>
             ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                     {filteredEntries.map((entry) => (
-                        <button key={entry.id} onClick={() => setSelectedEntry(entry)} className="w-full text-left p-3 rounded-xl bg-card border border-border hover:border-pink-500/50 transition-all">
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-muted-foreground">{format(parseISO(entry.date), "MMM d, yyyy")}</span>
-                                <span className="text-xl">{getMoodEmoji(entry.mood)}</span>
+                        <button key={entry.id} onClick={() => setSelectedEntry(entry)} className="w-full text-left p-4 rounded-2xl bg-card border border-border hover:border-blue-400 dark:hover:border-blue-600 transition-all">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-blue-500 dark:text-blue-400">{format(parseISO(entry.date), "EEEE, MMM d")}</span>
+                                <span className="text-2xl">{getMoodEmoji(entry.mood)}</span>
                             </div>
-                            {entry.title && <h3 className="font-bold text-sm mb-1 line-clamp-1">{entry.title}</h3>}
-                            <p className="text-muted-foreground text-xs line-clamp-2">{entry.content}</p>
+                            {entry.title && <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-1 line-clamp-1">{entry.title}</h3>}
+                            <p className="text-slate-600 dark:text-slate-300 text-base line-clamp-2 leading-relaxed">{entry.content}</p>
                             {entry.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-2">{entry.tags.slice(0, 3).map((tag) => (<span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-pink-500/10 text-pink-600 dark:text-pink-400">#{tag}</span>))}</div>
+                                <div className="flex flex-wrap gap-2 mt-3">{entry.tags.slice(0, 3).map((tag) => (<span key={tag} className="text-xs px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium">#{tag}</span>))}</div>
                             )}
                         </button>
                     ))}
                 </div>
             )}
 
-            {/* Entry Detail Modal - Book Style */}
             {selectedEntry && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-amber-50 dark:bg-amber-950/90 border-2 border-amber-200 dark:border-amber-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col relative">
-                        {/* Book spine effect */}
-                        <div className="absolute left-0 top-0 bottom-0 w-3 bg-gradient-to-r from-amber-300 dark:from-amber-700 to-transparent" />
+                <div className="fixed inset-0 flex items-center justify-center z-50 p-4" onClick={() => setSelectedEntry(null)}>
+                    <div className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col relative" onClick={(e) => e.stopPropagation()}>
+                        {/* Diary spine effect - subtle blue */}
+                        <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-r from-blue-200 dark:from-blue-800 to-transparent" />
 
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 pl-6 border-b border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center justify-between p-4 pl-6 border-b border-slate-200 dark:border-slate-700">
                             <div className="flex items-center gap-3 min-w-0">
                                 <span className="text-3xl">{getMoodEmoji(selectedEntry.mood)}</span>
                                 <div className="min-w-0">
-                                    <p className="font-bold text-amber-900 dark:text-amber-100 truncate">{selectedEntry.title || "Journal Entry"}</p>
-                                    <p className="text-xs text-amber-600 dark:text-amber-400">{format(parseISO(selectedEntry.date), "EEEE, MMMM d, yyyy")}</p>
+                                    <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{selectedEntry.title || "Journal Entry"}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">{format(parseISO(selectedEntry.date), "EEEE, MMMM d, yyyy")}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                <button onClick={() => deleteEntry(selectedEntry.id)} className="p-2 rounded-lg hover:bg-red-500/10 text-amber-600 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                                <button onClick={() => setSelectedEntry(null)} className="p-2 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800"><X className="w-5 h-5 text-amber-700 dark:text-amber-300" /></button>
+                                <button onClick={() => deleteEntry(selectedEntry.id)} className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-500 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                <button onClick={() => setSelectedEntry(null)} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-5 h-5 text-slate-600 dark:text-slate-400" /></button>
                             </div>
                         </div>
 
-                        {/* Content - Paper texture */}
-                        <div className="flex-1 overflow-y-auto p-6 pl-8" style={{ backgroundImage: 'repeating-linear-gradient(transparent, transparent 28px, rgba(0,0,0,0.03) 28px, rgba(0,0,0,0.03) 29px)' }}>
-                            <p className="whitespace-pre-wrap text-amber-900 dark:text-amber-100 leading-[29px] font-serif text-base">{selectedEntry.content}</p>
+                        {/* Content - Clean reading experience */}
+                        <div className="flex-1 overflow-y-auto p-6 pl-8">
+                            <p className="whitespace-pre-wrap text-slate-700 dark:text-slate-200 leading-8 text-base tracking-wide">{selectedEntry.content}</p>
                             {selectedEntry.tags.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-6 pt-4 border-t border-amber-200 dark:border-amber-800">
+                                <div className="flex flex-wrap gap-2 mt-8 pt-5 border-t border-slate-200 dark:border-slate-700">
                                     {selectedEntry.tags.map((tag) => (
-                                        <span key={tag} className="px-3 py-1 rounded-full bg-pink-500/20 text-pink-700 dark:text-pink-400 text-xs font-medium">#{tag}</span>
+                                        <span key={tag} className="px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-medium">#{tag}</span>
                                     ))}
                                 </div>
                             )}

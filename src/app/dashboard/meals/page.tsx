@@ -94,6 +94,7 @@ export default function MealsPage() {
     const [formTime, setFormTime] = useState(format(new Date(), "HH:mm"));
 
     const today = getToday();
+    const yesterday = format(subDays(parseISO(today), 1), "yyyy-MM-dd");
 
     const loadMeals = useCallback(async () => {
         if (!user) return;
@@ -199,25 +200,25 @@ export default function MealsPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-4 border-orange-700 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-4 pb-24 md:pb-6">
-            {/* Header */}
-            <div className="flex items-center justify-between gap-2">
-                <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
-                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-gradient-to-br from-orange-400 to-red-500 text-white">
+        <div className="space-y-5 pb-4">
+            {/* Header - Terracotta Matte */}
+            <div className="flex items-center justify-between gap-2 relative">
+                <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2.5">
+                    <div className="p-2 md:p-2.5 rounded-xl md:rounded-2xl bg-gradient-to-br from-orange-600 to-amber-700 text-white shadow-lg">
                         <Utensils className="w-4 h-4 md:w-5 md:h-5" />
                     </div>
-                    <span>Meals</span>
+                    <span className="text-slate-800 dark:text-slate-100">Meals</span>
                 </h1>
                 <button
                     onClick={() => setShowForm(true)}
-                    disabled={selectedDate !== today}
-                    className="flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2.5 rounded-lg md:rounded-xl bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50"
+                    disabled={selectedDate !== today && selectedDate !== yesterday}
+                    className="flex items-center gap-1.5 px-3 py-2 md:px-4 md:py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-700 text-white font-semibold text-sm shadow-lg active:scale-95 transition-transform disabled:opacity-50"
                 >
                     <Plus className="w-4 h-4" />
                     <span className="hidden sm:inline">Add Meal</span>
@@ -225,32 +226,32 @@ export default function MealsPage() {
                 </button>
             </div>
 
-            {/* Date Navigation */}
-            <div className="flex items-center justify-between bg-card border border-border rounded-xl p-2.5">
-                <button onClick={() => goToDate(-1)} className="p-2 rounded-lg hover:bg-secondary">
-                    <ChevronLeft className="w-5 h-5" />
+            {/* Date Navigation - Matte */}
+            <div className="flex items-center justify-between bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 rounded-2xl p-3 border border-orange-200 dark:border-orange-800">
+                <button onClick={() => goToDate(-1)} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-orange-900/50 transition-colors">
+                    <ChevronLeft className="w-5 h-5 text-orange-700 dark:text-orange-400" />
                 </button>
                 <div className="text-center">
-                    <p className="font-semibold text-sm md:text-base">{format(parseISO(selectedDate), "EEE, MMM d")}</p>
-                    {selectedDate === today && <span className="text-xs text-orange-500">Today</span>}
+                    <p className="font-semibold text-sm md:text-base text-slate-700 dark:text-slate-200">{format(parseISO(selectedDate), "EEEE, MMM d")}</p>
+                    {selectedDate === today && <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">Today</span>}
                 </div>
                 <button
                     onClick={() => goToDate(1)}
                     disabled={selectedDate >= today}
-                    className="p-2 rounded-lg hover:bg-secondary disabled:opacity-30"
+                    className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-orange-900/50 disabled:opacity-30 transition-colors"
                 >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-5 h-5 text-orange-700 dark:text-orange-400" />
                 </button>
             </div>
 
-            {/* Total Calories */}
-            <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-xl p-4">
+            {/* Total Calories - Matte */}
+            <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Flame className="w-5 h-5 text-orange-500" />
-                        <span className="font-semibold text-sm md:text-base">Total</span>
+                        <Flame className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                        <span className="font-semibold text-sm md:text-base text-slate-700 dark:text-slate-200">Total</span>
                     </div>
-                    <span className="text-xl md:text-2xl font-bold text-orange-500">{totalCalories} kcal</span>
+                    <span className="text-xl md:text-2xl font-bold text-orange-600 dark:text-orange-400">{totalCalories} kcal</span>
                 </div>
             </div>
 
@@ -288,7 +289,7 @@ export default function MealsPage() {
                                                 {meal.calories && <span className="text-orange-500">• {meal.calories} kcal</span>}
                                             </div>
                                         </div>
-                                        {selectedDate === today && (
+                                        {(selectedDate === today || selectedDate === yesterday) && (
                                             <button
                                                 onClick={() => deleteMeal(meal.id)}
                                                 className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
@@ -304,13 +305,13 @@ export default function MealsPage() {
                 );
             })}
 
-            {/* Add Meal Modal */}
+            {/* Add Meal Modal - Terracotta Theme */}
             {showForm && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-lg max-h-[90vh] md:max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95">
-                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
-                            <h2 className="text-lg font-bold">🍽️ Log Meal</h2>
-                            <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-secondary">
+                <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setShowForm(false)}>
+                    <div className="bg-card border-t-4 border-orange-500 rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[90vh] md:max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="sticky top-0 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/40 dark:to-amber-950/30 flex items-center justify-between p-4 border-b border-orange-200 dark:border-orange-800">
+                            <h2 className="text-lg font-bold text-orange-800 dark:text-orange-200">🍽️ Log Meal</h2>
+                            <button onClick={() => setShowForm(false)} className="p-2 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/50 text-orange-600">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>

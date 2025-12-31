@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { getToday, generateId } from "@/lib/utils";
 import type { Prayer, PrayerType } from "@/types";
-import { Moon, Sun, Sunset, Cloud, Star, Check, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
-import { format, addDays, subDays, parseISO, startOfWeek, endOfWeek } from "date-fns";
+import { Moon, Sun, Sunset, Cloud, Star, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { format, addDays, subDays, parseISO, startOfWeek } from "date-fns";
 
-const PRAYERS: { key: PrayerType; name: string; icon: React.ElementType; time: string; color: string }[] = [
-    { key: "fajr", name: "Fajr", icon: Sun, time: "Dawn", color: "from-amber-400 to-orange-500" },
-    { key: "dhuhr", name: "Dhuhr", icon: Cloud, time: "Noon", color: "from-yellow-400 to-amber-500" },
-    { key: "asr", name: "Asr", icon: Sunset, time: "Afternoon", color: "from-orange-400 to-red-500" },
-    { key: "maghrib", name: "Maghrib", icon: Moon, time: "Sunset", color: "from-purple-400 to-pink-500" },
-    { key: "isha", name: "Isha", icon: Star, time: "Night", color: "from-indigo-400 to-purple-500" },
+const PRAYERS: { key: PrayerType; name: string; icon: React.ElementType; time: string }[] = [
+    { key: "fajr", name: "Fajr", icon: Sun, time: "Dawn" },
+    { key: "dhuhr", name: "Dhuhr", icon: Cloud, time: "Noon" },
+    { key: "asr", name: "Asr", icon: Sunset, time: "Afternoon" },
+    { key: "maghrib", name: "Maghrib", icon: Moon, time: "Sunset" },
+    { key: "isha", name: "Isha", icon: Star, time: "Night" },
 ];
 
 export default function PrayerPage() {
@@ -22,21 +23,34 @@ export default function PrayerPage() {
     const [prayer, setPrayer] = useState<Prayer | null>(null);
     const [weeklyData, setWeeklyData] = useState<Map<string, Prayer>>(new Map());
     const [loading, setLoading] = useState(true);
+    const pendingUpdates = useRef<Set<string>>(new Set());
+    const previousDateRef = useRef<string>(selectedDate);
 
     const today = getToday();
     const minDate = format(subDays(new Date(), 2), "yyyy-MM-dd");
+
+    // CRITICAL: Clear prayer state when date changes to prevent auto-tick appearance
+    useEffect(() => {
+        if (previousDateRef.current !== selectedDate) {
+            // Date changed - immediately clear state to show unchecked until loaded
+            setPrayer(null);
+            setLoading(true);
+            previousDateRef.current = selectedDate;
+        }
+    }, [selectedDate]);
 
     const loadData = useCallback(async () => {
         if (!user) return;
         try {
             const db = getUserDatabase(user.id);
-            const todayPrayer = await db.prayers.where("date").equals(selectedDate).first();
-            setPrayer(todayPrayer || null);
+
+            // Load prayer for the SPECIFIC selected date only
+            const datePrayer = await db.prayers.where("date").equals(selectedDate).first();
+            // Only set prayer if it exists for THIS date, otherwise null (all unchecked)
+            setPrayer(datePrayer || null);
 
             const weekStart = format(startOfWeek(parseISO(selectedDate), { weekStartsOn: 0 }), "yyyy-MM-dd");
-            const weekEnd = format(endOfWeek(parseISO(selectedDate), { weekStartsOn: 0 }), "yyyy-MM-dd");
-            const weekPrayers = await db.prayers.where("date").between(weekStart, weekEnd, true, true).toArray();
-
+            const weekPrayers = await db.prayers.where("date").between(weekStart, today, true, true).toArray();
             const weekMap = new Map<string, Prayer>();
             weekPrayers.forEach((p) => weekMap.set(p.date, p));
             setWeeklyData(weekMap);
@@ -45,36 +59,62 @@ export default function PrayerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, selectedDate]);
+    }, [user, selectedDate, today]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const togglePrayer = async (prayerType: PrayerType) => {
-        if (!user) return;
-        if (selectedDate < minDate) {
-            return; // Can't modify old entries
-        }
-        try {
-            const db = getUserDatabase(user.id);
-            const now = Date.now();
+    const togglePrayer = (prayerType: PrayerType) => {
+        if (!user || selectedDate < minDate) return;
+        if (pendingUpdates.current.has(prayerType)) return;
 
-            if (prayer) {
-                await db.prayers.update(prayer.id, { [prayerType]: !prayer[prayerType], updatedAt: now });
-                setPrayer({ ...prayer, [prayerType]: !prayer[prayerType], updatedAt: now });
-            } else {
-                const newPrayer: Prayer = {
-                    id: generateId(), userId: user.id, date: selectedDate,
-                    fajr: prayerType === "fajr", dhuhr: prayerType === "dhuhr", asr: prayerType === "asr",
-                    maghrib: prayerType === "maghrib", isha: prayerType === "isha",
-                    createdAt: now, updatedAt: now, syncStatus: "pending", version: 1,
-                };
-                await db.prayers.add(newPrayer);
-                setPrayer(newPrayer);
+        const currentValue = prayer?.[prayerType] ?? false;
+        const newValue = !currentValue;
+
+        // INSTANT UI UPDATE using flushSync for synchronous render
+        flushSync(() => {
+            setPrayer((prev) => {
+                if (prev) return { ...prev, [prayerType]: newValue };
+                return {
+                    id: "temp-" + Date.now(), userId: user.id, date: selectedDate,
+                    fajr: prayerType === "fajr" ? newValue : false,
+                    dhuhr: prayerType === "dhuhr" ? newValue : false,
+                    asr: prayerType === "asr" ? newValue : false,
+                    maghrib: prayerType === "maghrib" ? newValue : false,
+                    isha: prayerType === "isha" ? newValue : false,
+                    createdAt: Date.now(), updatedAt: Date.now(), syncStatus: "pending", version: 1,
+                } as Prayer;
+            });
+        });
+
+        // Background DB update (non-blocking)
+        pendingUpdates.current.add(prayerType);
+        const updateDb = async () => {
+            try {
+                const db = getUserDatabase(user.id);
+                const now = Date.now();
+                const existingPrayer = await db.prayers.where("date").equals(selectedDate).first();
+
+                if (existingPrayer) {
+                    await db.prayers.update(existingPrayer.id, { [prayerType]: newValue, updatedAt: now });
+                    setPrayer(prev => prev ? { ...prev, id: existingPrayer.id } : prev);
+                } else {
+                    const newPrayer: Prayer = {
+                        id: generateId(), userId: user.id, date: selectedDate,
+                        fajr: prayerType === "fajr", dhuhr: prayerType === "dhuhr", asr: prayerType === "asr",
+                        maghrib: prayerType === "maghrib", isha: prayerType === "isha",
+                        createdAt: now, updatedAt: now, syncStatus: "pending", version: 1,
+                    };
+                    await db.prayers.add(newPrayer);
+                    setPrayer(prev => prev ? { ...prev, id: newPrayer.id } : newPrayer);
+                }
+            } catch (error) {
+                console.error("Failed to toggle prayer:", error);
+                loadData(); // Revert on error
+            } finally {
+                pendingUpdates.current.delete(prayerType);
             }
-            loadData();
-        } catch (error) {
-            console.error("Failed to toggle prayer:", error);
-        }
+        };
+        updateDb();
     };
 
     const completedCount = prayer ? [prayer.fajr, prayer.dhuhr, prayer.asr, prayer.maghrib, prayer.isha].filter(Boolean).length : 0;
@@ -93,41 +133,45 @@ export default function PrayerPage() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-3 border-slate-500 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="space-y-6 pb-24 md:pb-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 text-white">
-                        <Moon className="w-6 h-6" />
+        <div className="space-y-5 pb-4">
+            {/* Header - Slate Purple Matte */}
+            <div className="flex items-center justify-between relative">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-gradient-to-br from-slate-600 to-purple-700/80 text-white shadow-lg">
+                        <Moon className="w-5 h-5" />
                     </div>
-                    Namaz Tracker
-                </h1>
-                <p className="text-muted-foreground mt-1">Track your daily Salah and build consistency</p>
+                    <div>
+                        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Namaz</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Track your daily Salah</p>
+                    </div>
+                </div>
+                <div className="text-right bg-gradient-to-br from-slate-100 to-purple-50 dark:from-slate-800/50 dark:to-purple-900/30 px-4 py-2 rounded-xl">
+                    <p className="text-2xl font-bold text-slate-700 dark:text-slate-200">{completedCount}<span className="text-lg text-slate-400">/5</span></p>
+                </div>
             </div>
 
-            {/* Date Navigation */}
-            <div className="flex items-center justify-between bg-card border-2 border-border rounded-2xl p-4">
-                <button onClick={() => goToDate(-1)} disabled={selectedDate <= minDate} className="p-3 rounded-xl hover:bg-secondary transition-colors disabled:opacity-30">
-                    <ChevronLeft className="w-5 h-5" />
+            {/* Date Navigation - Matte Card */}
+            <div className="flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50 dark:from-slate-900/50 dark:to-purple-900/20 rounded-2xl p-3 border border-slate-200 dark:border-slate-700">
+                <button onClick={() => goToDate(-1)} disabled={selectedDate <= minDate} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
+                    <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </button>
                 <div className="text-center">
-                    <p className="font-bold text-lg">{format(parseISO(selectedDate), "EEE, MMM d")}</p>
-                    {selectedDate === today && <span className="text-sm text-purple-500">Today</span>}
-                    {!canEdit && <span className="text-xs text-destructive block">Read only</span>}
+                    <p className="font-semibold text-slate-700 dark:text-slate-200">{format(parseISO(selectedDate), "EEEE, MMM d")}</p>
+                    {selectedDate === today && <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Today</span>}
                 </div>
-                <button onClick={() => goToDate(1)} disabled={selectedDate >= today} className="p-3 rounded-xl hover:bg-secondary transition-colors disabled:opacity-30">
-                    <ChevronRight className="w-5 h-5" />
+                <button onClick={() => goToDate(1)} disabled={selectedDate >= today} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
+                    <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </button>
             </div>
 
-            {/* Weekly Overview - Grid layout, no horizontal scroll */}
-            <div className="grid grid-cols-7 gap-1 md:gap-2">
+            {/* Week View - Minimal Matte */}
+            <div className="grid grid-cols-7 gap-1.5">
                 {weekDays.map((day) => {
                     const dayPrayer = weeklyData.get(day);
                     const dayCount = dayPrayer ? [dayPrayer.fajr, dayPrayer.dhuhr, dayPrayer.asr, dayPrayer.maghrib, dayPrayer.isha].filter(Boolean).length : 0;
@@ -140,16 +184,13 @@ export default function PrayerPage() {
                             key={day}
                             onClick={() => !isDisabled && setSelectedDate(day)}
                             disabled={isDisabled}
-                            className={`p-1.5 md:p-3 rounded-lg md:rounded-xl text-center transition-all ${isSelected ? "bg-gradient-to-br from-purple-500 to-violet-600 text-white shadow-lg shadow-purple-500/30"
-                                : isToday ? "bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500"
-                                    : isDisabled ? "bg-secondary/50 opacity-40" : "bg-card border-2 border-border hover:border-purple-500/50"
-                                }`}
+                            className={`py-2.5 rounded-xl text-center transition-all ${isSelected ? "bg-gradient-to-br from-slate-600 to-purple-700 text-white shadow-lg" : isToday ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : isDisabled ? "opacity-30" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                         >
-                            <p className="text-[10px] md:text-xs font-medium">{format(parseISO(day), "EEE")}</p>
-                            <p className="text-sm md:text-lg font-bold">{format(parseISO(day), "d")}</p>
+                            <p className="text-[10px] font-medium opacity-70">{format(parseISO(day), "EEE")}</p>
+                            <p className="text-sm font-bold">{format(parseISO(day), "d")}</p>
                             <div className="flex justify-center gap-0.5 mt-1">
                                 {[...Array(5)].map((_, i) => (
-                                    <div key={i} className={`w-1 h-1 md:w-1.5 md:h-1.5 rounded-full ${i < dayCount ? (isSelected ? "bg-white" : "bg-purple-500") : (isSelected ? "bg-white/30" : "bg-muted")}`} />
+                                    <div key={i} className={`w-1 h-1 rounded-full ${i < dayCount ? (isSelected ? "bg-white" : "bg-purple-500") : "bg-slate-300 dark:bg-slate-600"}`} />
                                 ))}
                             </div>
                         </button>
@@ -157,29 +198,18 @@ export default function PrayerPage() {
                 })}
             </div>
 
-            {/* Progress */}
-            <div className="bg-gradient-to-br from-purple-500/10 via-violet-500/5 to-indigo-500/10 border border-purple-500/20 rounded-2xl p-5 md:p-6">
-                <div className="flex items-center justify-between mb-4">
-                    <span className="font-semibold">Today&apos;s Progress</span>
-                    <span className="text-3xl font-bold bg-gradient-to-r from-purple-500 to-violet-600 bg-clip-text text-transparent">
-                        {completedCount}/5
-                    </span>
+            {/* Progress Bar - Matte */}
+            <div className="bg-gradient-to-r from-slate-100 to-purple-100 dark:from-slate-800/50 dark:to-purple-900/30 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
+                <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-slate-500 to-purple-600 rounded-full transition-all duration-500 ease-out" style={{ width: `${(completedCount / 5) * 100}%` }} />
                 </div>
-                <div className="h-4 bg-purple-500/20 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-purple-500 to-violet-500 rounded-full transition-all duration-700" style={{ width: `${(completedCount / 5) * 100}%` }} />
-                </div>
-                <p className="text-sm text-muted-foreground mt-3 text-center flex items-center justify-center gap-2">
-                    {completedCount === 5 ? (
-                        <>
-                            <Sparkles className="w-4 h-4 text-purple-500" />
-                            <span className="text-purple-500 font-medium">Masha&apos;Allah! All prayers completed! 🌟</span>
-                        </>
-                    ) : completedCount === 0 ? "Start your prayers for today" : `${5 - completedCount} prayer${5 - completedCount > 1 ? "s" : ""} remaining`}
+                <p className="text-sm text-center mt-3 text-slate-600 dark:text-slate-400 font-medium">
+                    {completedCount === 5 ? "✨ All prayers completed!" : `${5 - completedCount} remaining`}
                 </p>
             </div>
 
-            {/* Prayer List */}
-            <div className="grid gap-3">
+            {/* Prayer List - Premium Matte Cards */}
+            <div className="space-y-2.5">
                 {PRAYERS.map((p) => {
                     const isCompleted = prayer?.[p.key] ?? false;
                     const Icon = p.icon;
@@ -188,31 +218,30 @@ export default function PrayerPage() {
                             key={p.key}
                             onClick={() => togglePrayer(p.key)}
                             disabled={!canEdit}
-                            className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${isCompleted ? "bg-gradient-to-r from-purple-500/10 to-violet-500/5 border-purple-500/40"
-                                : canEdit ? "bg-card border-border hover:border-purple-500/50 hover:shadow-lg" : "bg-secondary/50 border-border opacity-60 cursor-not-allowed"
+                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98] border ${isCompleted
+                                ? "bg-gradient-to-r from-slate-100 to-purple-100 dark:from-slate-800/80 dark:to-purple-900/40 border-purple-300 dark:border-purple-700"
+                                : canEdit ? "bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600" : "bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800 opacity-50"
                                 }`}
                         >
-                            <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center transition-all ${isCompleted ? `bg-gradient-to-br ${p.color} text-white shadow-lg` : "bg-secondary"}`}>
-                                <Icon className="w-6 h-6 md:w-7 md:h-7" />
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isCompleted ? "bg-gradient-to-br from-slate-600 to-purple-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
+                                <Icon className="w-5 h-5" />
                             </div>
                             <div className="flex-1 text-left">
-                                <h3 className={`font-bold text-base md:text-lg ${isCompleted ? "text-purple-600 dark:text-purple-400" : ""}`}>{p.name}</h3>
-                                <p className="text-sm text-muted-foreground">{p.time}</p>
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-100">{p.name}</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">{p.time}</p>
                             </div>
-                            <div className={`w-7 h-7 md:w-8 md:h-8 rounded-full flex items-center justify-center border-2 transition-all ${isCompleted ? "bg-gradient-to-br from-purple-500 to-violet-600 border-transparent text-white" : "border-muted-foreground/30"}`}>
-                                {isCompleted && <Check className="w-4 h-4 md:w-5 md:h-5" />}
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isCompleted ? "bg-purple-600 text-white" : "border-2 border-slate-300 dark:border-slate-600"}`}>
+                                {isCompleted && <Check className="w-4 h-4" />}
                             </div>
                         </button>
                     );
                 })}
             </div>
 
-            {/* Info Note */}
-            <div className="text-center p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                    ⚠️ You can only log prayers for today and the past 2 days to maintain authenticity
-                </p>
-            </div>
+            {!canEdit && (
+                <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 py-2 rounded-xl">⚠️ Can only edit past 2 days</p>
+            )}
         </div>
     );
 }
+

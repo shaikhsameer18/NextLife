@@ -23,29 +23,29 @@
     --border: 270 30% 88%;
     --input: 270 30% 88%;
     --ring: 262 83% 58%;
-    --radius: 1rem;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 262 60% 7%;
-    --foreground: 270 30% 98%;
-    --card: 262 50% 10%;
-    --card-foreground: 270 30% 98%;
-    --popover: 262 50% 10%;
-    --popover-foreground: 270 30% 98%;
-    --primary: 262 83% 65%;
+    --background: 222 47% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 263 70% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 262 40% 16%;
-    --secondary-foreground: 270 30% 98%;
-    --muted: 262 40% 20%;
-    --muted-foreground: 270 20% 60%;
-    --accent: 262 83% 65%;
+    --secondary: 222 47% 12%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 47% 15%;
+    --muted-foreground: 215 20% 55%;
+    --accent: 263 70% 58%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 262 40% 18%;
-    --input: 262 40% 18%;
-    --ring: 262 83% 65%;
+    --border: 222 47% 15%;
+    --input: 222 47% 15%;
+    --ring: 263 70% 58%;
   }
 }
 
@@ -59,13 +59,11 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Custom scrollbar */
+  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -76,19 +74,19 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-primary/30 rounded-full;
+    @apply bg-slate-700 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-primary/50;
+    @apply bg-slate-600;
   }
 
-  /* Remove autofill styling */
+  /* Autofill */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus {
-    -webkit-text-fill-color: hsl(var(--foreground));
-    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--secondary)) inset;
+    -webkit-text-fill-color: #fff;
+    -webkit-box-shadow: 0 0 0px 1000px rgb(15 23 42) inset;
     transition: background-color 5000s ease-in-out 0s;
   }
 }
@@ -98,37 +96,38 @@
     text-wrap: balance;
   }
 
-  .glass {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20;
+  /* Simple fade animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
-  .gradient-primary {
-    @apply bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500;
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  .gradient-glow {
-    @apply relative;
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
   }
 
-  .gradient-glow::before {
-    content: "";
-    @apply absolute inset-0 bg-gradient-to-r from-violet-500/30 via-purple-500/30 to-fuchsia-500/30 blur-3xl -z-10;
+  .animate-fade-in-up {
+    animation: fade-in-up 0.4s ease-out;
   }
 
-  /* Animations */
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
-  }
-
-  .animate-pulse-slow {
-    animation: pulse 3s ease-in-out infinite;
-  }
-
-  .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient 5s ease infinite;
-  }
-
+  /* Float animation for decorative elements */
   @keyframes float {
 
     0%,
@@ -141,21 +140,11 @@
     }
   }
 
-  @keyframes gradient {
-    0% {
-      background-position: 0% 50%;
-    }
-
-    50% {
-      background-position: 100% 50%;
-    }
-
-    100% {
-      background-position: 0% 50%;
-    }
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
   }
 
-  /* Mobile optimizations */
+  /* Safe area for mobile */
   .safe-area-inset {
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -163,15 +152,15 @@
 
 /* Selection */
 ::selection {
-  @apply bg-primary/30 text-foreground;
+  @apply bg-violet-500/30 text-white;
 }
 
 /* Focus visible */
 :focus-visible {
-  @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  @apply outline-none ring-2 ring-violet-500 ring-offset-2 ring-offset-slate-950;
 }
 
-/* Disable tap highlight on mobile */
+/* Disable tap highlight */
 * {
   -webkit-tap-highlight-color: transparent;
 }

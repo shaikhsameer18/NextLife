@@ -113,41 +113,44 @@ export default function InsightsPage() {
     };
 
     if (loading) {
-        return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>);
+        return (<div className="flex items-center justify-center h-64"><div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>);
     }
 
     return (
-        <div className="space-y-4 pb-24 md:pb-6 overflow-x-hidden" ref={reportRef}>
-            {/* Header */}
+        <div className="space-y-5 pb-24 md:pb-6 overflow-x-hidden" ref={reportRef}>
+            {/* Header - Violet Theme */}
             <div className="flex items-center justify-between gap-2">
-                <h1 className="text-lg md:text-2xl font-bold flex items-center gap-2">
-                    <div className="p-1.5 md:p-2 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white"><BarChart3 className="w-4 h-4 md:w-5 md:h-5" /></div>
-                    Insights
-                </h1>
-                <div className="flex items-center gap-1">
-                    <div className="flex gap-0.5 p-0.5 bg-secondary rounded-lg">
+                <div>
+                    <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2.5">
+                        <div className="p-2 md:p-2.5 rounded-2xl bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg"><BarChart3 className="w-5 h-5 md:w-6 md:h-6" /></div>
+                        <span className="text-slate-800 dark:text-slate-100">Insights</span>
+                    </h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Your productivity overview</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                         {(["week", "month"] as const).map((p) => (
-                            <button key={p} onClick={() => setPeriod(p)} className={`px-2 py-1 rounded text-xs font-semibold capitalize ${period === p ? "bg-primary text-primary-foreground" : ""}`}>{p}</button>
+                            <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${period === p ? "bg-violet-600 text-white shadow" : "text-slate-600 dark:text-slate-300"}`}>{p}</button>
                         ))}
                     </div>
-                    <button onClick={downloadReport} className="p-2 rounded-lg bg-primary text-primary-foreground" title="Download"><Download className="w-4 h-4" /></button>
+                    <button onClick={downloadReport} className="p-2.5 rounded-xl bg-violet-600 text-white shadow-lg active:scale-95 transition-transform" title="Download"><Download className="w-4 h-4" /></button>
                 </div>
             </div>
 
-            {/* Productivity Score */}
-            <div className="bg-gradient-to-br from-violet-500/10 via-purple-500/5 to-fuchsia-500/10 border border-violet-500/20 rounded-xl p-4">
-                <div className="flex items-center gap-3">
-                    <div className="relative w-16 h-16">
+            {/* Productivity Score - Premium Card */}
+            <div className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/30 border border-violet-200 dark:border-violet-800 rounded-2xl p-5">
+                <div className="flex items-center gap-4">
+                    <div className="relative w-20 h-20">
                         <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="6" fill="none" className="text-violet-500/20" />
-                            <circle cx="32" cy="32" r="26" stroke="url(#scoreGradient)" strokeWidth="6" fill="none" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 26}`} strokeDashoffset={`${2 * Math.PI * 26 * (1 - stats.productivityScore / 100)}`} className="transition-all duration-1000" />
-                            <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#d946ef" /></linearGradient></defs>
+                            <circle cx="40" cy="40" r="34" stroke="currentColor" strokeWidth="6" fill="none" className="text-violet-200 dark:text-violet-800" />
+                            <circle cx="40" cy="40" r="34" stroke="url(#scoreGradient)" strokeWidth="6" fill="none" strokeLinecap="round" strokeDasharray={`${2 * Math.PI * 34}`} strokeDashoffset={`${2 * Math.PI * 34 * (1 - stats.productivityScore / 100)}`} className="transition-all duration-1000" />
+                            <defs><linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stopColor="#8b5cf6" /><stop offset="100%" stopColor="#a855f7" /></linearGradient></defs>
                         </svg>
-                        <div className="absolute inset-0 flex items-center justify-center"><span className="text-xl font-bold">{stats.productivityScore}</span></div>
+                        <div className="absolute inset-0 flex items-center justify-center"><span className="text-2xl font-bold text-violet-700 dark:text-violet-300">{stats.productivityScore}</span></div>
                     </div>
                     <div>
-                        <h2 className="font-bold">Productivity Score</h2>
-                        <p className="text-xs text-muted-foreground">Based on habits, prayers, sleep, water, focus</p>
+                        <h2 className="font-bold text-lg text-slate-800 dark:text-slate-100">Productivity Score</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Based on habits, prayers, sleep, water & focus</p>
                     </div>
                 </div>
             </div>

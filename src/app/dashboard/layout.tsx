@@ -132,31 +132,30 @@ export default function DashboardLayout({
     return (
         <div className="min-h-screen flex">
             {/* Mobile Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 lg:hidden bg-card/80 backdrop-blur-xl border-b border-border">
-                <div className="flex items-center justify-between px-4 py-3">
+            <header className="fixed top-0 left-0 right-0 z-50 lg:hidden bg-card/95 backdrop-blur-xl border-b border-border">
+                <div className="flex items-center justify-between px-4 py-2.5">
                     <Link href="/dashboard" className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                             <Sparkles className="w-4 h-4 text-white" />
                         </div>
                         <span className="font-bold text-lg">NextLife</span>
                     </Link>
-                    <div className="flex items-center gap-2">
-                        {/* Theme Toggle */}
+                    <div className="flex items-center gap-1.5">
                         <button
                             onClick={toggleTheme}
-                            className="p-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
+                            className="p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
                         >
                             {theme === "dark" ? (
-                                <Sun className="w-5 h-5 text-yellow-500" />
+                                <Sun className="w-4 h-4 text-yellow-500" />
                             ) : (
-                                <Moon className="w-5 h-5 text-indigo-500" />
+                                <Moon className="w-4 h-4 text-indigo-500" />
                             )}
                         </button>
                         <button
                             onClick={() => setSidebarOpen(true)}
-                            className="p-2 rounded-xl hover:bg-secondary transition-colors"
+                            className="p-2 rounded-lg hover:bg-secondary transition-colors"
                         >
-                            <Menu className="w-6 h-6" />
+                            <Menu className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
@@ -269,9 +268,9 @@ export default function DashboardLayout({
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 min-h-screen">
-                <div className="pt-16 lg:pt-0 pb-24 lg:pb-6 px-4 md:px-6 lg:px-8 max-w-6xl mx-auto">
-                    <div className="py-6">{children}</div>
+            <main className="flex-1 min-h-screen bg-background">
+                <div className="pt-14 lg:pt-0 pb-20 lg:pb-4 px-4 md:px-6 lg:px-8 max-w-6xl mx-auto">
+                    <div className="py-4 lg:py-6">{children}</div>
                 </div>
             </main>
 
