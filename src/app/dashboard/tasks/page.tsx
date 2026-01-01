@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Task } from "@/types";
@@ -59,6 +60,7 @@ export default function TasksPage() {
             setShowForm(false);
             setFormTitle(""); setFormDescription(""); setFormPriority("medium"); setFormDueDate("");
             loadTasks();
+            syncToCloud(user.id, "tasks");
         } catch (error) {
             console.error("Failed to create task:", error);
         }
@@ -66,12 +68,12 @@ export default function TasksPage() {
 
     const updateTaskStatus = async (taskId: string, status: Task["status"]) => {
         if (!user) return;
-        try { const db = getUserDatabase(user.id); await db.tasks.update(taskId, { status, updatedAt: Date.now() }); loadTasks(); } catch (error) { console.error("Failed to update task:", error); }
+        try { const db = getUserDatabase(user.id); await db.tasks.update(taskId, { status, updatedAt: Date.now() }); loadTasks(); syncToCloud(user.id, "tasks"); } catch (error) { console.error("Failed to update task:", error); }
     };
 
     const deleteTask = async (taskId: string) => {
         if (!user) return;
-        try { const db = getUserDatabase(user.id); await db.tasks.delete(taskId); toast({ title: "Task deleted" }); loadTasks(); } catch (error) { console.error("Failed to delete task:", error); }
+        try { const db = getUserDatabase(user.id); await db.tasks.delete(taskId); toast({ title: "Task deleted" }); loadTasks(); syncToCloud(user.id, "tasks"); } catch (error) { console.error("Failed to delete task:", error); }
     };
 
     const filteredTasks = tasks.filter((task) => filter === "all" || task.status === filter);

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/hooks/use-user";
 import { useAuth } from "@/components/providers";
 import { useAuthStore } from "@/stores/auth";
 import { signOut } from "@/lib/supabase";
+import { syncAllFromCloud, syncAllToCloud } from "@/lib/sync";
 import {
     Home,
     CheckCircle2,
@@ -28,7 +29,9 @@ import {
     User,
     Sun,
     Dumbbell,
-    Palette,
+    Cloud,
+    CloudOff,
+    RefreshCw,
 } from "lucide-react";
 
 // Navigation item mapping for mobile nav customization
@@ -66,6 +69,7 @@ export default function DashboardLayout({
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [initialized, setInitialized] = useState(false);
     const [mobileNavItems, setMobileNavItems] = useState<string[]>(DEFAULT_MOBILE_NAV);
+    const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
 
     // Load pinned nav items from localStorage
     useEffect(() => {
@@ -81,16 +85,34 @@ export default function DashboardLayout({
         }
     }, []);
 
-    // Initialize local user data when session is available
+    // Initialize local user data and sync from cloud when session is available
     useEffect(() => {
-        if (session?.user && !initialized) {
-            initializeUser(
-                session.user.id,
-                session.user.email || "",
-                session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User"
-            );
-            setInitialized(true);
-        }
+        const initAndSync = async () => {
+            if (session?.user && !initialized) {
+                // First initialize the local user
+                await initializeUser(
+                    session.user.id,
+                    session.user.email || "",
+                    session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "User"
+                );
+                setInitialized(true);
+
+                // Then sync data from cloud
+                setSyncStatus("syncing");
+                try {
+                    const result = await syncAllFromCloud(session.user.id);
+                    setSyncStatus(result.success ? "synced" : "error");
+                    if (result.success) {
+                        console.log("✓ Cloud sync complete - data loaded from cloud");
+                    }
+                } catch (error) {
+                    console.error("Cloud sync error:", error);
+                    setSyncStatus("error");
+                }
+            }
+        };
+
+        initAndSync();
     }, [session, initializeUser, initialized]);
 
     // Redirect to login if not authenticated

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { SleepLog } from "@/types";
@@ -93,6 +94,7 @@ export default function SleepPage() {
             }
             toast({ title: "Sleep logged! 😴" });
             loadData();
+            syncToCloud(user.id, "sleepLogs");
         } catch (error) {
             console.error("Failed to save sleep:", error);
         }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useTransition } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { getToday, generateId } from "@/lib/utils";
 import type { Habit, HabitLog } from "@/types";
 import { Plus, CheckCircle2, Trash2, Edit, Archive, ArchiveRestore, X, Target, List, ChevronLeft, ChevronRight, History } from "lucide-react";
@@ -99,6 +100,8 @@ export default function HabitsPage() {
         }
         setShowForm(false);
         loadData();
+        // Sync habits to cloud
+        syncToCloud(user.id, "habits");
     };
 
     // INSTANT TOGGLE - Optimistic update
@@ -131,6 +134,8 @@ export default function HabitsPage() {
             await db.habitLogs.add(log);
             setTodayLogs(prev => { const m = new Map(prev); m.set(habitId, log); return m; });
         }
+        // Sync habit logs to cloud
+        syncToCloud(user.id, "habitLogs");
     };
 
     const deleteHabit = async (habitId: string) => {
@@ -139,6 +144,9 @@ export default function HabitsPage() {
         const db = getUserDatabase(user.id);
         await db.habits.delete(habitId);
         await db.habitLogs.where("habitId").equals(habitId).delete();
+        // Sync to cloud
+        syncToCloud(user.id, "habits");
+        syncToCloud(user.id, "habitLogs");
     };
 
     const toggleArchive = async (habitId: string, isArchived: boolean) => {
@@ -146,6 +154,8 @@ export default function HabitsPage() {
         setAllHabits(prev => prev.map(h => h.id === habitId ? { ...h, isArchived: !isArchived } : h));
         const db = getUserDatabase(user.id);
         await db.habits.update(habitId, { isArchived: !isArchived, updatedAt: Date.now() });
+        // Sync to cloud
+        syncToCloud(user.id, "habits");
     };
 
     const goToHistoryDate = (days: number) => {

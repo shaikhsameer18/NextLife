@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { MealLog } from "@/types";
@@ -175,6 +176,7 @@ export default function MealsPage() {
             setFormCalories("");
             setSelectedFoods(new Set());
             loadMeals();
+            syncToCloud(user.id, "mealLogs");
         } catch (error) {
             console.error("Failed to add meal:", error);
             toast({ title: "Failed to add meal", variant: "destructive" });
@@ -188,6 +190,7 @@ export default function MealsPage() {
             await db.mealLogs.delete(mealId);
             toast({ title: "Meal deleted" });
             loadMeals();
+            syncToCloud(user.id, "mealLogs");
         } catch (error) {
             console.error("Failed to delete meal:", error);
         }

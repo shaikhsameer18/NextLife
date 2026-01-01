@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { Expense } from "@/types";
@@ -112,6 +113,7 @@ export default function FinancePage() {
             setFormCategory("food");
             setFormDate(getToday());
             loadExpenses();
+            syncToCloud(user.id, "expenses");
         } catch (error) {
             console.error("Failed to add expense:", error);
             toast({ title: "Failed to add expense", variant: "destructive" });
@@ -125,6 +127,7 @@ export default function FinancePage() {
             await db.expenses.delete(expenseId);
             toast({ title: "Expense deleted" });
             loadExpenses();
+            syncToCloud(user.id, "expenses");
         } catch (error) {
             console.error("Failed to delete expense:", error);
         }

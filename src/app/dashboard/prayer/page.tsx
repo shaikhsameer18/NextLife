@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { getToday, generateId } from "@/lib/utils";
 import type { Prayer, PrayerType } from "@/types";
 import { Moon, Sun, Sunset, Cloud, Star, Check, ChevronLeft, ChevronRight } from "lucide-react";
@@ -107,6 +108,8 @@ export default function PrayerPage() {
                     await db.prayers.add(newPrayer);
                     setPrayer(prev => prev ? { ...prev, id: newPrayer.id } : newPrayer);
                 }
+                // Sync prayers to cloud
+                syncToCloud(user.id, "prayers");
             } catch (error) {
                 console.error("Failed to toggle prayer:", error);
                 loadData(); // Revert on error

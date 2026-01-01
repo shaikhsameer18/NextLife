@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { VaultItem } from "@/types";
@@ -139,6 +140,7 @@ export default function VaultPage() {
             setShowForm(false);
             setFormType("note"); setFormTitle(""); setFormContent(""); setFormUrl(""); setFormTags("");
             loadItems();
+            syncToCloud(user.id, "vaultItems");
         } catch (error) {
             console.error("Failed to save item:", error);
         }
@@ -146,12 +148,12 @@ export default function VaultPage() {
 
     const toggleFavorite = async (itemId: string, currentValue: boolean) => {
         if (!user) return;
-        try { const db = getUserDatabase(user.id); await db.vaultItems.update(itemId, { isFavorite: !currentValue, updatedAt: Date.now() }); loadItems(); } catch (error) { console.error("Failed to toggle favorite:", error); }
+        try { const db = getUserDatabase(user.id); await db.vaultItems.update(itemId, { isFavorite: !currentValue, updatedAt: Date.now() }); loadItems(); syncToCloud(user.id, "vaultItems"); } catch (error) { console.error("Failed to toggle favorite:", error); }
     };
 
     const deleteItem = async (itemId: string) => {
         if (!user) return;
-        try { const db = getUserDatabase(user.id); await db.vaultItems.delete(itemId); setSelectedItem(null); toast({ title: "Item deleted" }); loadItems(); } catch (error) { console.error("Failed to delete item:", error); }
+        try { const db = getUserDatabase(user.id); await db.vaultItems.delete(itemId); setSelectedItem(null); toast({ title: "Item deleted" }); loadItems(); syncToCloud(user.id, "vaultItems"); } catch (error) { console.error("Failed to delete item:", error); }
     };
 
     const filteredItems = items.filter((item) => {

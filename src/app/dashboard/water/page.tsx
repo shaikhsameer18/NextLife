@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { WaterLog } from "@/types";
@@ -91,6 +92,7 @@ export default function WaterPage() {
 
             setCustomAmount("");
             loadLogs();
+            syncToCloud(user.id, "waterLogs");
         } catch (error) {
             console.error("Failed to add water log:", error);
             setLogs(prev => prev.filter(l => l.id !== tempLog.id));
@@ -104,6 +106,7 @@ export default function WaterPage() {
             const db = getUserDatabase(user.id);
             await db.waterLogs.delete(logId);
             loadLogs();
+            syncToCloud(user.id, "waterLogs");
         } catch (error) {
             console.error("Failed to delete log:", error);
         }

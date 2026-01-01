@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { JournalEntry } from "@/types";
@@ -59,6 +60,7 @@ export default function JournalPage() {
             setShowForm(false);
             setFormTitle(""); setFormContent(""); setFormMood(3); setFormTags("");
             loadEntries();
+            syncToCloud(user.id, "journalEntries");
         } catch (error) {
             console.error("Failed to save entry:", error);
         }
@@ -72,6 +74,7 @@ export default function JournalPage() {
             setSelectedEntry(null);
             toast({ title: "Entry deleted" });
             loadEntries();
+            syncToCloud(user.id, "journalEntries");
         } catch (error) {
             console.error("Failed to delete entry:", error);
         }
