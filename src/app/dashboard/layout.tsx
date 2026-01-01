@@ -7,7 +7,7 @@ import { useUser } from "@/hooks/use-user";
 import { useAuth } from "@/components/providers";
 import { useAuthStore } from "@/stores/auth";
 import { signOut } from "@/lib/supabase";
-import { syncAllFromCloud, syncAllToCloud } from "@/lib/sync";
+import { syncAllFromCloud, syncAllToCloud, isCloudSyncAvailable } from "@/lib/sync";
 import {
     Home,
     CheckCircle2,
@@ -163,6 +163,38 @@ export default function DashboardLayout({
                         <span className="font-bold text-lg">NextLife</span>
                     </Link>
                     <div className="flex items-center gap-1.5">
+                        {/* Sync Status Indicator */}
+                        {isCloudSyncAvailable() && (
+                            <div
+                                className={`p-2 rounded-lg transition-colors ${syncStatus === "syncing"
+                                        ? "bg-blue-500/20"
+                                        : syncStatus === "synced"
+                                            ? "bg-green-500/20"
+                                            : syncStatus === "error"
+                                                ? "bg-red-500/20"
+                                                : "bg-secondary/50"
+                                    }`}
+                                title={
+                                    syncStatus === "syncing"
+                                        ? "Syncing..."
+                                        : syncStatus === "synced"
+                                            ? "Synced to cloud"
+                                            : syncStatus === "error"
+                                                ? "Sync error"
+                                                : "Cloud sync"
+                                }
+                            >
+                                {syncStatus === "syncing" ? (
+                                    <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
+                                ) : syncStatus === "synced" ? (
+                                    <Cloud className="w-4 h-4 text-green-500" />
+                                ) : syncStatus === "error" ? (
+                                    <CloudOff className="w-4 h-4 text-red-500" />
+                                ) : (
+                                    <Cloud className="w-4 h-4 text-muted-foreground" />
+                                )}
+                            </div>
+                        )}
                         <button
                             onClick={toggleTheme}
                             className="p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
