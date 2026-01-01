@@ -191,7 +191,10 @@ export async function syncFromCloud(userId: string, dataType: SyncDataType): Pro
         // Clear and repopulate the table
         await table.clear();
         if (mergedData.length > 0) {
-            await table.bulkAdd(mergedData as never[]);
+            // Use individual adds to avoid TypeScript union type issues with bulkAdd
+            for (const item of mergedData) {
+                await (table as any).add(item);
+            }
         }
 
         console.log(`✓ Synced ${dataType} from cloud (${cloudData.length} cloud, ${mergedData.length} merged)`);
