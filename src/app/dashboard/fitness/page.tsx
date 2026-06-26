@@ -1,69 +1,43 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { generateId, getToday } from "@/lib/utils";
+import { syncToCloud } from "@/lib/sync";
 import { useToast } from "@/hooks/use-toast";
-import {
-    Dumbbell,
-    Plus,
-    X,
-    Scale,
-    Flame,
-    Target,
-    TrendingUp,
-    Calendar,
-    Trophy,
-    Timer,
-    Zap,
-    Heart,
-    Activity,
-    Award,
-} from "lucide-react";
-import { format, subDays, differenceInDays } from "date-fns";
+import { Dumbbell, Plus, X, Scale, Flame, Trophy, Zap, Heart, Activity } from "lucide-react";
+import { format, subDays } from "date-fns";
 
 interface FitnessEntry {
-    id: string;
-    date: string;
-    weight?: number;
-    bodyFat?: number;
-    muscleExercises?: MuscleExercise[];
-    cardioMinutes?: number;
-    caloriesBurned?: number;
-    notes?: string;
-    createdAt: string;
+    id: string; date: string; weight?: number; bodyFat?: number;
+    muscleExercises?: MuscleExercise[]; cardioMinutes?: number;
+    caloriesBurned?: number; notes?: string; createdAt: string;
 }
-
 interface MuscleExercise {
-    name: string;
-    sets: number;
-    reps: number;
-    weight: number;
-    muscleGroup: string;
-    // Cardio-specific fields
-    duration?: number;  // in minutes
-    distance?: number;  // in km
+    name: string; sets: number; reps: number; weight: number; muscleGroup: string;
+    duration?: number; distance?: number;
 }
 
 const MUSCLE_GROUPS = [
-    { id: "chest", label: "Chest", emoji: "💪" },
-    { id: "back", label: "Back", emoji: "🏋️" },
-    { id: "shoulders", label: "Shoulders", emoji: "🎯" },
-    { id: "arms", label: "Arms", emoji: "💪" },
-    { id: "legs", label: "Legs", emoji: "🦵" },
-    { id: "core", label: "Core", emoji: "🔥" },
-    { id: "cardio", label: "Cardio", emoji: "❤️" },
+    { id: "chest",     label: "Chest",     emoji: "💪", color: "#f97316" },
+    { id: "back",      label: "Back",      emoji: "🏋️",  color: "#3b82f6" },
+    { id: "shoulders", label: "Shoulders", emoji: "🎯", color: "#8b5cf6" },
+    { id: "arms",      label: "Arms",      emoji: "💪", color: "#ec4899" },
+    { id: "legs",      label: "Legs",      emoji: "🦵", color: "#10b981" },
+    { id: "core",      label: "Core",      emoji: "🔥", color: "#ef4444" },
+    { id: "cardio",    label: "Cardio",    emoji: "❤️", color: "#f43f5e" },
 ];
 
 const EXERCISE_PRESETS: Record<string, string[]> = {
-    chest: ["Bench Press", "Incline Press", "Dumbbell Fly", "Push-ups", "Cable Crossover"],
-    back: ["Deadlift", "Pull-ups", "Lat Pulldown", "Barbell Row", "Cable Row"],
+    chest:     ["Bench Press", "Incline Press", "Dumbbell Fly", "Push-ups", "Cable Crossover"],
+    back:      ["Deadlift", "Pull-ups", "Lat Pulldown", "Barbell Row", "Cable Row"],
     shoulders: ["Overhead Press", "Lateral Raise", "Front Raise", "Face Pull", "Shrugs"],
-    arms: ["Bicep Curl", "Tricep Dip", "Hammer Curl", "Skull Crusher", "Preacher Curl"],
-    legs: ["Squats", "Leg Press", "Lunges", "Leg Curl", "Calf Raise"],
-    core: ["Plank", "Crunches", "Leg Raise", "Russian Twist", "Ab Wheel"],
-    cardio: ["Treadmill", "Cycling", "Rowing", "Elliptical", "Jump Rope"],
+    arms:      ["Bicep Curl", "Tricep Dip", "Hammer Curl", "Skull Crusher", "Preacher Curl"],
+    legs:      ["Squats", "Leg Press", "Lunges", "Leg Curl", "Calf Raise"],
+    core:      ["Plank", "Crunches", "Leg Raise", "Russian Twist", "Ab Wheel"],
+    cardio:    ["Treadmill", "Cycling", "Rowing", "Elliptical", "Jump Rope"],
 };
 
 export default function FitnessPage() {
@@ -74,23 +48,13 @@ export default function FitnessPage() {
     const [showModal, setShowModal] = useState(false);
     const [modalTab, setModalTab] = useState<"log" | "workout">("log");
 
-    // Form state
     const [weight, setWeight] = useState("");
     const [bodyFat, setBodyFat] = useState("");
     const [selectedMuscleGroup, setSelectedMuscleGroup] = useState("");
     const [exercises, setExercises] = useState<MuscleExercise[]>([]);
     const [cardioMinutes, setCardioMinutes] = useState("");
     const [caloriesBurned, setCaloriesBurned] = useState("");
-
-    // Current exercise being added
-    const [currentExercise, setCurrentExercise] = useState({
-        name: "",
-        sets: 3,
-        reps: 10,
-        weight: 0,
-        duration: 0,  // for cardio
-        distance: 0,   // for cardio
-    });
+    const [currentExercise, setCurrentExercise] = useState({ name: "", sets: 3, reps: 10, weight: 0, duration: 0, distance: 0 });
 
     const loadEntries = useCallback(async () => {
         if (!user?.id) return;
@@ -98,596 +62,258 @@ export default function FitnessPage() {
             const db = getUserDatabase(user.id);
             const data = await (db as unknown as { fitness?: { toArray: () => Promise<FitnessEntry[]> } }).fitness?.toArray() || [];
             setEntries(data.sort((a: FitnessEntry, b: FitnessEntry) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-        } catch (error) {
-            console.error("Failed to load fitness data:", error);
-        } finally {
-            setLoading(false);
-        }
+        } catch (e) { console.error(e); }
+        finally { setLoading(false); }
     }, [user?.id]);
 
-    useEffect(() => {
-        loadEntries();
-    }, [loadEntries]);
+    useEffect(() => { loadEntries(); }, [loadEntries]);
 
     const addExercise = () => {
         if (!currentExercise.name || !selectedMuscleGroup) return;
-
         const isCardio = selectedMuscleGroup === "cardio";
-        const newExercise: MuscleExercise = {
-            name: currentExercise.name,
-            muscleGroup: selectedMuscleGroup,
-            sets: isCardio ? 0 : currentExercise.sets,
-            reps: isCardio ? 0 : currentExercise.reps,
-            weight: isCardio ? 0 : currentExercise.weight,
-            duration: isCardio ? currentExercise.duration : undefined,
-            distance: isCardio ? currentExercise.distance : undefined,
-        };
-
-        setExercises([...exercises, newExercise]);
+        setExercises(prev => [...prev, { name: currentExercise.name, muscleGroup: selectedMuscleGroup, sets: isCardio ? 0 : currentExercise.sets, reps: isCardio ? 0 : currentExercise.reps, weight: isCardio ? 0 : currentExercise.weight, duration: isCardio ? currentExercise.duration : undefined, distance: isCardio ? currentExercise.distance : undefined }]);
         setCurrentExercise({ name: "", sets: 3, reps: 10, weight: 0, duration: 0, distance: 0 });
-    };
-
-    const removeExercise = (index: number) => {
-        setExercises(exercises.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async () => {
         if (!user?.id) return;
-        if (!weight && exercises.length === 0 && !cardioMinutes) {
-            toast({ title: "Please log at least one metric" });
-            return;
-        }
-
+        if (!weight && exercises.length === 0 && !cardioMinutes) { toast({ title: "Please log at least one metric" }); return; }
         try {
             const db = getUserDatabase(user.id);
-            const entry: FitnessEntry = {
-                id: generateId(),
-                date: getToday(),
-                weight: weight ? parseFloat(weight) : undefined,
-                bodyFat: bodyFat ? parseFloat(bodyFat) : undefined,
-                muscleExercises: exercises.length > 0 ? exercises : undefined,
-                cardioMinutes: cardioMinutes ? parseInt(cardioMinutes) : undefined,
-                caloriesBurned: caloriesBurned ? parseInt(caloriesBurned) : undefined,
-                createdAt: new Date().toISOString(),
-            };
-
-            await (db as unknown as { fitness?: { add: (entry: FitnessEntry) => Promise<unknown> } }).fitness?.add(entry);
+            const entry: FitnessEntry = { id: generateId(), date: getToday(), weight: weight ? parseFloat(weight) : undefined, bodyFat: bodyFat ? parseFloat(bodyFat) : undefined, muscleExercises: exercises.length > 0 ? exercises : undefined, cardioMinutes: cardioMinutes ? parseInt(cardioMinutes) : undefined, caloriesBurned: caloriesBurned ? parseInt(caloriesBurned) : undefined, createdAt: new Date().toISOString() };
+            await (db as unknown as { fitness?: { add: (e: FitnessEntry) => Promise<unknown> } }).fitness?.add(entry);
             await loadEntries();
-
-            // Reset form
-            setWeight("");
-            setBodyFat("");
-            setExercises([]);
-            setCardioMinutes("");
-            setCaloriesBurned("");
-            setSelectedMuscleGroup("");
-            setShowModal(false);
-
+            syncToCloud(user.id, "fitness");
+            setWeight(""); setBodyFat(""); setExercises([]); setCardioMinutes(""); setCaloriesBurned(""); setSelectedMuscleGroup(""); setShowModal(false);
             toast({ title: "Workout logged! 💪" });
-        } catch (error) {
-            console.error("Failed to save fitness data:", error);
-            toast({ title: "Failed to save data" });
-        }
+        } catch (e) { console.error(e); toast({ title: "Failed to save" }); }
     };
 
-    // Calculate stats
     const todayEntry = entries.find(e => e.date === getToday());
-    const last7Days = entries.filter(e => {
-        const entryDate = new Date(e.date);
-        const sevenDaysAgo = subDays(new Date(), 7);
-        return entryDate >= sevenDaysAgo;
-    });
-    const last30Days = entries.filter(e => {
-        const entryDate = new Date(e.date);
-        const thirtyDaysAgo = subDays(new Date(), 30);
-        return entryDate >= thirtyDaysAgo;
-    });
+    const last7 = entries.filter(e => new Date(e.date) >= subDays(new Date(), 7));
+    const totalWorkouts = last7.filter(e => e.muscleExercises && e.muscleExercises.length > 0).length;
+    const totalSets     = last7.reduce((s, e) => s + (e.muscleExercises?.reduce((ss, ex) => ss + ex.sets, 0) || 0), 0);
 
-    const totalWorkouts = last7Days.filter(e => e.muscleExercises && e.muscleExercises.length > 0).length;
-    const totalSets = last7Days.reduce((sum, e) =>
-        sum + (e.muscleExercises?.reduce((s, ex) => s + ex.sets, 0) || 0), 0);
-    const totalVolume = last7Days.reduce((sum, e) =>
-        sum + (e.muscleExercises?.reduce((s, ex) => s + (ex.sets * ex.reps * ex.weight), 0) || 0), 0);
-
-    // Calculate streak
     let streak = 0;
-    const today = new Date();
     for (let i = 0; i < 365; i++) {
-        const checkDate = format(subDays(today, i), "yyyy-MM-dd");
-        if (entries.some(e => e.date === checkDate && e.muscleExercises && e.muscleExercises.length > 0)) {
-            streak++;
-        } else if (i > 0) {
-            break;
-        }
+        const d = format(subDays(new Date(), i), "yyyy-MM-dd");
+        if (entries.some(e => e.date === d && e.muscleExercises && e.muscleExercises.length > 0)) streak++;
+        else if (i > 0) break;
     }
 
-    // Weight progress for line chart (last 30 days)
-    const weightData = last30Days
-        .filter(e => e.weight)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(-10);
-
-    const minWeight = weightData.length > 0 ? Math.min(...weightData.map(e => e.weight!)) - 2 : 0;
-    const maxWeight = weightData.length > 0 ? Math.max(...weightData.map(e => e.weight!)) + 2 : 100;
-
-    // New Year countdown
-    const newYear = new Date(2025, 0, 1);
-    const daysUntilNewYear = differenceInDays(newYear, today);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="w-10 h-10 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <motion.div className="w-10 h-10 rounded-full border-2 border-teal-500/30 border-t-teal-500" animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} />
+        </div>
+    );
 
     return (
-        <div className="space-y-6 pb-24 md:pb-6">
-            {/* Header - Olive/Stone Matte */}
-            <div className="flex items-center justify-between relative">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                        <div className="p-2.5 rounded-2xl bg-gradient-to-br from-teal-600 to-emerald-700 text-white shadow-lg">
-                            <Dumbbell className="w-6 h-6" />
-                        </div>
-                        <span className="text-slate-800 dark:text-slate-100">Gym Tracker</span>
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">New Year, New You 🎯</p>
+        <div className="space-y-5 pb-6">
+            {/* ── HERO ── */}
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="relative rounded-3xl overflow-hidden p-5" style={{ background: "linear-gradient(135deg, #011a14 0%, #052e22 45%, #011a14 100%)" }}>
+                <div className="absolute top-0 right-0 w-40 h-40 bg-teal-500/8 rounded-full -translate-y-1/3 translate-x-1/3 blur-2xl" />
+                <div className="relative flex items-start justify-between mb-5">
+                    <div>
+                        <p className="text-teal-400/50 text-[10px] font-semibold tracking-widest uppercase">Gym Tracker</p>
+                        <h1 className="text-2xl font-black text-white mt-0.5">
+                            {todayEntry ? "Worked Out Today ✅" : "Not Yet Today"}
+                        </h1>
+                        <p className="text-white/40 text-sm mt-0.5">{streak} day streak · {totalWorkouts} sessions this week</p>
+                    </div>
+                    <motion.button whileTap={{ scale: 0.92 }} onClick={() => setShowModal(true)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-teal-500 text-white text-sm font-bold shadow-lg shadow-teal-900/50">
+                        <Plus className="w-4 h-4" /> Log
+                    </motion.button>
                 </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-teal-600 to-emerald-700 text-white font-semibold shadow-lg active:scale-95 transition-transform"
-                >
-                    <Plus className="w-5 h-5" />
-                    <span className="hidden md:inline">Log Workout</span>
-                </button>
-            </div>
+                {/* Stats row */}
+                <div className="grid grid-cols-4 gap-2.5">
+                    {[
+                        { icon: Scale,    label: "Weight",   value: `${todayEntry?.weight ?? entries[0]?.weight ?? "--"}kg`, color: "#94a3b8" },
+                        { icon: Trophy,   label: "Streak",   value: `${streak}d`,     color: "#fbbf24" },
+                        { icon: Zap,      label: "Sessions", value: totalWorkouts,    color: "#34d399" },
+                        { icon: Activity, label: "Sets",     value: totalSets,        color: "#60a5fa" },
+                    ].map((s, i) => (
+                        <motion.div key={s.label} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className="bg-white/5 rounded-2xl p-3 border border-white/8">
+                            <s.icon className="w-4 h-4 mb-1.5" style={{ color: s.color }} />
+                            <p className="text-lg font-black text-white">{s.value}</p>
+                            <p className="text-white/30 text-[10px] mt-0.5">{s.label}</p>
+                        </motion.div>
+                    ))}
+                </div>
+            </motion.div>
 
-            {/* New Year Motivation Banner */}
-            {daysUntilNewYear > 0 && daysUntilNewYear <= 30 && (
-                <div className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-pink-600 to-red-500 rounded-2xl p-6 text-white">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-                    <div className="relative">
-                        <h2 className="text-xl font-bold mb-2">🎆 {daysUntilNewYear} Days Until 2025!</h2>
-                        <p className="text-white/80">Start your fitness journey now. Build the habit, crush the new year!</p>
-                    </div>
-                </div>
-            )}
-
-            {/* Stats Grid - Matte */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-800/50 dark:to-stone-800/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
-                        <Scale className="w-4 h-4" />
-                        <span className="text-sm">Weight</span>
-                    </div>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{todayEntry?.weight || entries[0]?.weight || "--"} <span className="text-sm text-slate-500">kg</span></p>
-                </div>
-                <div className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 border border-orange-200 dark:border-orange-800 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400 mb-1">
-                        <Trophy className="w-4 h-4" />
-                        <span className="text-sm">Streak</span>
-                    </div>
-                    <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{streak} <span className="text-sm">days</span></p>
-                </div>
-                <div className="bg-gradient-to-br from-teal-50 to-emerald-50 dark:from-teal-950/30 dark:to-emerald-950/20 border border-teal-200 dark:border-teal-800 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 mb-1">
-                        <Zap className="w-4 h-4" />
-                        <span className="text-sm">Workouts (7d)</span>
-                    </div>
-                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{totalWorkouts}</p>
-                </div>
-                <div className="bg-gradient-to-br from-slate-50 to-stone-100 dark:from-slate-800/50 dark:to-stone-800/30 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
-                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 mb-1">
-                        <Activity className="w-4 h-4" />
-                        <span className="text-sm">Total Sets</span>
-                    </div>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{totalSets}</p>
-                </div>
-            </div>
-
-            {/* Weight Progress - Line Chart */}
-            {weightData.length > 1 && (
-                <div className="bg-card border-2 border-border rounded-2xl p-4 md:p-6">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-teal-500" />
-                        Weight Progress
-                    </h2>
-                    <div className="relative h-48">
-                        {/* Y-axis labels */}
-                        <div className="absolute left-0 top-0 bottom-6 flex flex-col justify-between text-xs text-muted-foreground w-10">
-                            <span>{maxWeight.toFixed(0)}</span>
-                            <span>{((maxWeight + minWeight) / 2).toFixed(0)}</span>
-                            <span>{minWeight.toFixed(0)}</span>
-                        </div>
-                        {/* Chart area */}
-                        <div className="ml-12 h-full relative">
-                            {/* Grid lines */}
-                            <div className="absolute inset-0 flex flex-col justify-between">
-                                {[0, 1, 2].map((i) => (
-                                    <div key={i} className="border-t border-dashed border-border" />
-                                ))}
-                            </div>
-                            {/* Line chart */}
-                            <svg className="w-full h-full" viewBox={`0 0 ${weightData.length * 100} 200`} preserveAspectRatio="none">
-                                {/* Area fill */}
-                                <defs>
-                                    <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.3" />
-                                        <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
-                                    </linearGradient>
-                                </defs>
-                                <path
-                                    d={`M 0 200 ${weightData.map((e, i) => {
-                                        const x = (i / (weightData.length - 1)) * (weightData.length * 100 - 50) + 25;
-                                        const y = 200 - ((e.weight! - minWeight) / (maxWeight - minWeight)) * 180;
-                                        return `L ${x} ${y}`;
-                                    }).join(" ")} L ${weightData.length * 100} 200 Z`}
-                                    fill="url(#areaGradient)"
-                                />
-                                {/* Line */}
-                                <path
-                                    d={weightData.map((e, i) => {
-                                        const x = (i / (weightData.length - 1)) * (weightData.length * 100 - 50) + 25;
-                                        const y = 200 - ((e.weight! - minWeight) / (maxWeight - minWeight)) * 180;
-                                        return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-                                    }).join(" ")}
-                                    fill="none"
-                                    stroke="#14b8a6"
-                                    strokeWidth="3"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                />
-                                {/* Points */}
-                                {weightData.map((e, i) => {
-                                    const x = (i / (weightData.length - 1)) * (weightData.length * 100 - 50) + 25;
-                                    const y = 200 - ((e.weight! - minWeight) / (maxWeight - minWeight)) * 180;
-                                    return (
-                                        <circle
-                                            key={i}
-                                            cx={x}
-                                            cy={y}
-                                            r="6"
-                                            fill="#14b8a6"
-                                            stroke="white"
-                                            strokeWidth="2"
-                                        />
-                                    );
-                                })}
-                            </svg>
-                            {/* X-axis labels */}
-                            <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-muted-foreground mt-2">
-                                {weightData.map((e, i) => (
-                                    <span key={i}>{format(new Date(e.date), "MMM d")}</span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Muscle Groups Hit This Week */}
-            <div className="bg-card border-2 border-border rounded-2xl p-4 md:p-6">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <Award className="w-5 h-5 text-emerald-500" />
-                    Muscle Groups This Week
-                </h2>
-                <div className="grid grid-cols-4 md:grid-cols-7 gap-2">
-                    {MUSCLE_GROUPS.map((group) => {
-                        const count = last7Days.reduce((sum, e) =>
-                            sum + (e.muscleExercises?.filter(ex => ex.muscleGroup === group.id).length || 0), 0);
-                        const isHit = count > 0;
+            {/* ── MUSCLE GROUPS THIS WEEK ── */}
+            <div className="bg-card border border-border rounded-2xl p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Muscles Hit This Week</p>
+                <div className="grid grid-cols-7 gap-1.5">
+                    {MUSCLE_GROUPS.map(g => {
+                        const count = last7.reduce((s, e) => s + (e.muscleExercises?.filter(ex => ex.muscleGroup === g.id).length || 0), 0);
+                        const hit = count > 0;
                         return (
-                            <div
-                                key={group.id}
-                                className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${isHit
-                                    ? "bg-gradient-to-br from-teal-500/20 to-emerald-500/20 border-2 border-teal-500/30"
-                                    : "bg-secondary/50 border-2 border-transparent"
-                                    }`}
-                            >
-                                <span className="text-xl">{group.emoji}</span>
-                                <span className="text-xs font-medium">{group.label}</span>
-                                {isHit && <span className="text-xs text-teal-500">{count}x</span>}
-                            </div>
+                            <motion.div key={g.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-1 py-3 rounded-xl border-2 transition-colors"
+                                style={{ borderColor: hit ? g.color + "50" : "transparent", background: hit ? g.color + "15" : "var(--secondary)" }}>
+                                <span className="text-base">{g.emoji}</span>
+                                <span className="text-[9px] font-semibold" style={{ color: hit ? g.color : undefined }}>{g.label}</span>
+                                {hit && <span className="text-[9px] font-black" style={{ color: g.color }}>{count}×</span>}
+                            </motion.div>
                         );
                     })}
                 </div>
             </div>
 
-            {/* Recent Workouts */}
-            <div className="bg-card border-2 border-border rounded-2xl p-4 md:p-6">
-                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-emerald-500" />
-                    Recent Workouts
-                </h2>
+            {/* ── RECENT WORKOUTS ── */}
+            <div className="space-y-2.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recent Workouts</p>
                 {entries.length === 0 ? (
-                    <div className="text-center py-12">
-                        <Dumbbell className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
-                        <p className="text-muted-foreground">No workouts logged yet.</p>
-                        <p className="text-sm text-muted-foreground">Start your fitness journey today! 💪</p>
+                    <div className="text-center py-16">
+                        <div className="w-16 h-16 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center mx-auto mb-4">
+                            <Dumbbell className="w-8 h-8 text-teal-400/40" />
+                        </div>
+                        <p className="font-bold text-lg">No workouts yet</p>
+                        <p className="text-muted-foreground text-sm mt-1">Start your fitness journey today!</p>
+                        <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowModal(true)} className="mt-4 px-6 py-3 rounded-xl bg-teal-600 text-white font-semibold text-sm">Log First Workout</motion.button>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {entries.slice(0, 7).map((entry) => (
-                            <div key={entry.id} className="p-4 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors">
+                    <AnimatePresence initial={false}>
+                        {entries.slice(0, 7).map((entry, i) => (
+                            <motion.div key={entry.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                                className="bg-card border border-border rounded-2xl p-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <span className="font-bold">{format(new Date(entry.date), "EEEE, MMM d")}</span>
-                                    {entry.caloriesBurned && (
-                                        <span className="text-sm text-orange-500 flex items-center gap-1">
-                                            <Flame className="w-4 h-4" /> {entry.caloriesBurned} cal
-                                        </span>
-                                    )}
+                                    <div>
+                                        <p className="font-bold text-sm">{format(new Date(entry.date), "EEEE, MMM d")}</p>
+                                        {entry.weight && <p className="text-xs text-muted-foreground mt-0.5"><Scale className="w-3 h-3 inline mr-1" />{entry.weight} kg</p>}
+                                    </div>
+                                    {entry.caloriesBurned && <span className="text-sm text-orange-400 flex items-center gap-1 font-semibold"><Flame className="w-4 h-4" />{entry.caloriesBurned} cal</span>}
                                 </div>
                                 {entry.muscleExercises && entry.muscleExercises.length > 0 && (
-                                    <div className="flex flex-wrap gap-2">
-                                        {entry.muscleExercises.map((ex, i) => (
-                                            <span key={i} className="text-xs px-2 py-1 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                                                {ex.name} • {ex.muscleGroup === "cardio"
-                                                    ? `${ex.duration || 0}min${ex.distance ? ` / ${ex.distance}km` : ""}`
-                                                    : `${ex.sets}×${ex.reps} @ ${ex.weight}kg`}
-                                            </span>
-                                        ))}
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {entry.muscleExercises.map((ex, j) => {
+                                            const g = MUSCLE_GROUPS.find(g => g.id === ex.muscleGroup);
+                                            return (
+                                                <span key={j} className="text-[10px] px-2.5 py-1 rounded-full font-semibold" style={{ background: (g?.color ?? "#94a3b8") + "20", color: g?.color ?? "#94a3b8" }}>
+                                                    {ex.name} · {ex.muscleGroup === "cardio" ? `${ex.duration || 0}min` : `${ex.sets}×${ex.reps}@${ex.weight}kg`}
+                                                </span>
+                                            );
+                                        })}
                                     </div>
                                 )}
-                                {entry.weight && (
-                                    <p className="text-sm text-muted-foreground mt-2">Weight: {entry.weight} kg</p>
+                                {entry.cardioMinutes && (
+                                    <p className="text-xs text-rose-400 mt-1.5 flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{entry.cardioMinutes}min cardio</p>
                                 )}
-                            </div>
+                            </motion.div>
                         ))}
-                    </div>
+                    </AnimatePresence>
                 )}
             </div>
 
-            {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
-                    <div className="bg-card border-2 border-border rounded-2xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-border">
-                            <h2 className="text-lg font-bold flex items-center gap-2">
-                                <Dumbbell className="w-5 h-5 text-teal-500" />
-                                Log Workout
-                            </h2>
-                            <button onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-secondary">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {/* Tabs */}
-                        <div className="flex border-b border-border">
-                            <button
-                                onClick={() => setModalTab("log")}
-                                className={`flex-1 py-3 font-medium transition-colors ${modalTab === "log"
-                                    ? "text-teal-500 border-b-2 border-teal-500"
-                                    : "text-muted-foreground"
-                                    }`}
-                            >
-                                Quick Log
-                            </button>
-                            <button
-                                onClick={() => setModalTab("workout")}
-                                className={`flex-1 py-3 font-medium transition-colors ${modalTab === "workout"
-                                    ? "text-teal-500 border-b-2 border-teal-500"
-                                    : "text-muted-foreground"
-                                    }`}
-                            >
-                                Full Workout
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4 overflow-y-auto flex-1">
-                            {modalTab === "log" && (
-                                <div className="space-y-4">
-                                    {/* Weight */}
-                                    <div>
-                                        <label className="text-sm font-medium mb-1 flex items-center gap-2">
-                                            <Scale className="w-4 h-4" /> Weight (kg)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={weight}
-                                            onChange={(e) => setWeight(e.target.value)}
-                                            placeholder="e.g., 75"
-                                            step="0.1"
-                                            className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:border-teal-500 outline-none"
-                                        />
-                                    </div>
-
-                                    {/* Body Fat */}
-                                    <div>
-                                        <label className="text-sm font-medium mb-1 flex items-center gap-2">
-                                            <Target className="w-4 h-4" /> Body Fat % (optional)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={bodyFat}
-                                            onChange={(e) => setBodyFat(e.target.value)}
-                                            placeholder="e.g., 18"
-                                            step="0.1"
-                                            className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:border-teal-500 outline-none"
-                                        />
-                                    </div>
-
-                                    {/* Cardio */}
-                                    <div className="grid grid-cols-2 gap-3">
+            {/* ── LOG MODAL ── */}
+            <AnimatePresence>
+                {showModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-0 md:p-4" onClick={() => setShowModal(false)}>
+                        <motion.div initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30 }} className="bg-card rounded-t-3xl md:rounded-3xl w-full md:max-w-lg max-h-[90vh] flex flex-col border border-border" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between p-5 border-b border-border">
+                                <div><h2 className="text-lg font-black">Log Workout</h2><p className="text-xs text-muted-foreground mt-0.5">{format(new Date(), "EEEE, MMM d")}</p></div>
+                                <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowModal(false)} className="p-2 rounded-xl hover:bg-secondary"><X className="w-5 h-5" /></motion.button>
+                            </div>
+                            {/* Tabs */}
+                            <div className="flex border-b border-border">
+                                {(["log","workout"] as const).map(t => (
+                                    <button key={t} onClick={() => setModalTab(t)} className={`flex-1 py-3 text-sm font-semibold transition-colors ${modalTab === t ? "text-teal-400 border-b-2 border-teal-500" : "text-muted-foreground"}`}>
+                                        {t === "log" ? "Quick Log" : "Full Workout"}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-5">
+                                {modalTab === "log" && (
+                                    <div className="space-y-4">
                                         <div>
-                                            <label className="text-sm font-medium mb-1 flex items-center gap-2">
-                                                <Heart className="w-4 h-4" /> Cardio (min)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={cardioMinutes}
-                                                onChange={(e) => setCardioMinutes(e.target.value)}
-                                                placeholder="30"
-                                                className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:border-teal-500 outline-none"
-                                            />
+                                            <label className="text-sm font-semibold mb-1.5 flex items-center gap-1.5"><Scale className="w-4 h-4 text-muted-foreground" /> Weight (kg)</label>
+                                            <input type="number" value={weight} onChange={e => setWeight(e.target.value)} placeholder="e.g. 75" step="0.1" className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-sm transition-colors" />
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium mb-1 flex items-center gap-2">
-                                                <Flame className="w-4 h-4" /> Calories
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={caloriesBurned}
-                                                onChange={(e) => setCaloriesBurned(e.target.value)}
-                                                placeholder="300"
-                                                className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:border-teal-500 outline-none"
-                                            />
+                                            <label className="text-sm font-semibold mb-1.5 flex items-center gap-1.5 text-muted-foreground">Body Fat % <span className="font-normal">(optional)</span></label>
+                                            <input type="number" value={bodyFat} onChange={e => setBodyFat(e.target.value)} placeholder="e.g. 18" step="0.1" className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-sm transition-colors" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1.5"><Heart className="w-4 h-4 text-rose-400" /> Cardio (min)</label>
+                                                <input type="number" value={cardioMinutes} onChange={e => setCardioMinutes(e.target.value)} placeholder="30" className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-sm transition-colors" />
+                                            </div>
+                                            <div>
+                                                <label className="text-sm font-semibold mb-1.5 flex items-center gap-1.5"><Flame className="w-4 h-4 text-orange-400" /> Calories</label>
+                                                <input type="number" value={caloriesBurned} onChange={e => setCaloriesBurned(e.target.value)} placeholder="300" className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-sm transition-colors" />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-
-                            {modalTab === "workout" && (
-                                <div className="space-y-4">
-                                    {/* Muscle Group Selection */}
-                                    <div>
-                                        <label className="text-sm font-medium mb-2 block">Target Muscle Group</label>
-                                        <div className="grid grid-cols-4 gap-2">
-                                            {MUSCLE_GROUPS.map((group) => (
-                                                <button
-                                                    key={group.id}
-                                                    onClick={() => {
-                                                        setSelectedMuscleGroup(group.id);
-                                                        setCurrentExercise({ ...currentExercise, name: "" });
-                                                    }}
-                                                    className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${selectedMuscleGroup === group.id
-                                                        ? "bg-teal-500/20 border-2 border-teal-500"
-                                                        : "bg-secondary border-2 border-transparent"
-                                                        }`}
-                                                >
-                                                    <span>{group.emoji}</span>
-                                                    <span className="text-xs">{group.label}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Exercise Selection */}
-                                    {selectedMuscleGroup && (
-                                        <div className="space-y-3">
-                                            <label className="text-sm font-medium">Exercise</label>
-                                            <div className="flex flex-wrap gap-2">
-                                                {EXERCISE_PRESETS[selectedMuscleGroup]?.map((ex) => (
-                                                    <button
-                                                        key={ex}
-                                                        onClick={() => setCurrentExercise({ ...currentExercise, name: ex })}
-                                                        className={`px-3 py-1.5 rounded-lg text-sm transition-all ${currentExercise.name === ex
-                                                            ? "bg-teal-500 text-white"
-                                                            : "bg-secondary hover:bg-secondary/80"
-                                                            }`}
-                                                    >
-                                                        {ex}
-                                                    </button>
+                                )}
+                                {modalTab === "workout" && (
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="text-sm font-semibold mb-2 block">Target Muscle Group</label>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {MUSCLE_GROUPS.map(g => (
+                                                    <motion.button key={g.id} whileTap={{ scale: 0.9 }} onClick={() => { setSelectedMuscleGroup(g.id); setCurrentExercise({ ...currentExercise, name: "" }); }}
+                                                        className="flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-xs font-semibold transition-colors"
+                                                        style={{ borderColor: selectedMuscleGroup === g.id ? g.color : "transparent", background: selectedMuscleGroup === g.id ? g.color + "20" : "var(--secondary)", color: selectedMuscleGroup === g.id ? g.color : undefined }}>
+                                                        <span>{g.emoji}</span>{g.label}
+                                                    </motion.button>
                                                 ))}
                                             </div>
-
-                                            {/* Sets, Reps, Weight OR Duration for cardio */}
-                                            {selectedMuscleGroup === "cardio" ? (
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <div>
-                                                        <label className="text-xs font-medium mb-1 block">Duration (min)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={currentExercise.duration || ""}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, duration: parseInt(e.target.value) || 0 })}
-                                                            placeholder="30"
-                                                            className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium mb-1 block">Distance (km)</label>
-                                                        <input
-                                                            type="number"
-                                                            step="0.1"
-                                                            value={currentExercise.distance || ""}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, distance: parseFloat(e.target.value) || 0 })}
-                                                            placeholder="5"
-                                                            className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-3 gap-2">
-                                                    <div>
-                                                        <label className="text-xs font-medium mb-1 block">Sets</label>
-                                                        <input
-                                                            type="number"
-                                                            value={currentExercise.sets}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, sets: parseInt(e.target.value) || 0 })}
-                                                            className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium mb-1 block">Reps</label>
-                                                        <input
-                                                            type="number"
-                                                            value={currentExercise.reps}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, reps: parseInt(e.target.value) || 0 })}
-                                                            className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-xs font-medium mb-1 block">Weight (kg)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={currentExercise.weight}
-                                                            onChange={(e) => setCurrentExercise({ ...currentExercise, weight: parseFloat(e.target.value) || 0 })}
-                                                            className="w-full px-3 py-2 rounded-lg border-2 border-border bg-background focus:border-teal-500 outline-none text-center"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <button
-                                                onClick={addExercise}
-                                                disabled={!currentExercise.name}
-                                                className="w-full py-2 rounded-xl bg-secondary hover:bg-secondary/80 font-medium disabled:opacity-50"
-                                            >
-                                                + Add Exercise
-                                            </button>
                                         </div>
-                                    )}
-
-                                    {/* Added Exercises */}
-                                    {exercises.length > 0 && (
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Added Exercises</label>
-                                            {exercises.map((ex, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-teal-500/10">
-                                                    <div>
-                                                        <span className="font-medium">{ex.name}</span>
-                                                        <span className="text-sm text-muted-foreground ml-2">
-                                                            {ex.muscleGroup === "cardio"
-                                                                ? `${ex.duration || 0}min${ex.distance ? ` / ${ex.distance}km` : ""}`
-                                                                : `${ex.sets}×${ex.reps} @ ${ex.weight}kg`}
-                                                        </span>
-                                                    </div>
-                                                    <button onClick={() => removeExercise(i)} className="p-1 hover:bg-red-500/20 rounded">
-                                                        <X className="w-4 h-4 text-red-500" />
-                                                    </button>
+                                        {selectedMuscleGroup && (
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold">Exercise</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {EXERCISE_PRESETS[selectedMuscleGroup]?.map(ex => (
+                                                        <motion.button key={ex} whileTap={{ scale: 0.93 }} onClick={() => setCurrentExercise({ ...currentExercise, name: ex })}
+                                                            className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                                                            style={{ background: currentExercise.name === ex ? MUSCLE_GROUPS.find(g => g.id === selectedMuscleGroup)?.color + "30" : "var(--secondary)", color: currentExercise.name === ex ? MUSCLE_GROUPS.find(g => g.id === selectedMuscleGroup)?.color : undefined }}>
+                                                            {ex}
+                                                        </motion.button>
+                                                    ))}
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="p-4 border-t border-border">
-                            <button
-                                onClick={handleSubmit}
-                                className="w-full py-4 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-bold hover:scale-[1.02] transition-transform"
-                            >
-                                💪 Save Workout
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                                                {selectedMuscleGroup === "cardio" ? (
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <div><label className="text-xs font-semibold mb-1 block">Duration (min)</label><input type="number" value={currentExercise.duration || ""} onChange={e => setCurrentExercise({ ...currentExercise, duration: parseInt(e.target.value) || 0 })} placeholder="30" className="w-full px-3 py-2 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-center text-sm transition-colors" /></div>
+                                                        <div><label className="text-xs font-semibold mb-1 block">Distance (km)</label><input type="number" step="0.1" value={currentExercise.distance || ""} onChange={e => setCurrentExercise({ ...currentExercise, distance: parseFloat(e.target.value) || 0 })} placeholder="5" className="w-full px-3 py-2 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-center text-sm transition-colors" /></div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <div><label className="text-xs font-semibold mb-1 block">Sets</label><input type="number" value={currentExercise.sets} onChange={e => setCurrentExercise({ ...currentExercise, sets: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-center text-sm transition-colors" /></div>
+                                                        <div><label className="text-xs font-semibold mb-1 block">Reps</label><input type="number" value={currentExercise.reps} onChange={e => setCurrentExercise({ ...currentExercise, reps: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-center text-sm transition-colors" /></div>
+                                                        <div><label className="text-xs font-semibold mb-1 block">Weight (kg)</label><input type="number" value={currentExercise.weight} onChange={e => setCurrentExercise({ ...currentExercise, weight: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 rounded-xl bg-secondary border-2 border-transparent focus:border-teal-500 outline-none text-center text-sm transition-colors" /></div>
+                                                    </div>
+                                                )}
+                                                <motion.button whileTap={{ scale: 0.95 }} onClick={addExercise} disabled={!currentExercise.name} className="w-full py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 font-semibold text-sm disabled:opacity-50 transition-colors">
+                                                    + Add Exercise
+                                                </motion.button>
+                                                {exercises.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Added</label>
+                                                        {exercises.map((ex, i) => {
+                                                            const g = MUSCLE_GROUPS.find(g => g.id === ex.muscleGroup);
+                                                            return (
+                                                                <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-border" style={{ background: (g?.color ?? "#94a3b8") + "10" }}>
+                                                                    <div><span className="font-semibold text-sm">{ex.name}</span><span className="text-xs text-muted-foreground ml-2">{ex.muscleGroup === "cardio" ? `${ex.duration}min` : `${ex.sets}×${ex.reps}@${ex.weight}kg`}</span></div>
+                                                                    <button onClick={() => setExercises(prev => prev.filter((_, j) => j !== i))} className="p-1 hover:bg-destructive/15 rounded-lg"><X className="w-4 h-4 text-destructive" /></button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-5 border-t border-border">
+                                <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} className="w-full py-4 rounded-2xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-bold text-sm shadow-lg shadow-teal-900/30">
+                                    💪 Save Workout
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

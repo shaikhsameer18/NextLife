@@ -2,21 +2,34 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { flushSync } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
 import { syncToCloud } from "@/lib/sync";
 import { getToday, generateId } from "@/lib/utils";
 import type { Prayer, PrayerType } from "@/types";
-import { Moon, Sun, Sunset, Cloud, Star, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addDays, subDays, parseISO, startOfWeek } from "date-fns";
 
-const PRAYERS: { key: PrayerType; name: string; icon: React.ElementType; time: string }[] = [
-    { key: "fajr", name: "Fajr", icon: Sun, time: "Dawn" },
-    { key: "dhuhr", name: "Dhuhr", icon: Cloud, time: "Noon" },
-    { key: "asr", name: "Asr", icon: Sunset, time: "Afternoon" },
-    { key: "maghrib", name: "Maghrib", icon: Moon, time: "Sunset" },
-    { key: "isha", name: "Isha", icon: Star, time: "Night" },
+const PRAYERS: {
+    key: PrayerType;
+    name: string;
+    arabic: string;
+    time: string;
+    emoji: string;
+    gradient: string;
+    glow: string;
+    bg: string;
+}[] = [
+    { key: "fajr",    name: "Fajr",    arabic: "الفجر",   time: "Pre-dawn",  emoji: "🌙", gradient: "from-indigo-600 via-purple-600 to-blue-700",   glow: "shadow-indigo-500/40",  bg: "from-indigo-950/60 to-purple-950/40" },
+    { key: "dhuhr",   name: "Dhuhr",   arabic: "الظهر",   time: "Midday",    emoji: "☀️", gradient: "from-amber-500 via-orange-500 to-yellow-500",  glow: "shadow-amber-500/40",   bg: "from-amber-950/40 to-orange-950/30" },
+    { key: "asr",     name: "Asr",     arabic: "العصر",   time: "Afternoon", emoji: "🌤️", gradient: "from-sky-500 via-cyan-500 to-teal-500",        glow: "shadow-sky-500/40",     bg: "from-sky-950/40 to-cyan-950/30" },
+    { key: "maghrib", name: "Maghrib", arabic: "المغرب",  time: "Sunset",    emoji: "🌅", gradient: "from-rose-500 via-pink-500 to-orange-500",     glow: "shadow-rose-500/40",    bg: "from-rose-950/40 to-pink-950/30" },
+    { key: "isha",    name: "Isha",    arabic: "العشاء",  time: "Night",     emoji: "⭐", gradient: "from-violet-600 via-purple-600 to-indigo-700", glow: "shadow-violet-500/40",  bg: "from-violet-950/60 to-indigo-950/40" },
 ];
+
+const ARC_R = 52;
+const ARC_CIRC = 2 * Math.PI * ARC_R;
 
 export default function PrayerPage() {
     const { user } = useUser();
@@ -24,16 +37,15 @@ export default function PrayerPage() {
     const [prayer, setPrayer] = useState<Prayer | null>(null);
     const [weeklyData, setWeeklyData] = useState<Map<string, Prayer>>(new Map());
     const [loading, setLoading] = useState(true);
+    const [justCompleted, setJustCompleted] = useState<PrayerType | null>(null);
     const pendingUpdates = useRef<Set<string>>(new Set());
     const previousDateRef = useRef<string>(selectedDate);
 
     const today = getToday();
     const minDate = format(subDays(new Date(), 2), "yyyy-MM-dd");
 
-    // CRITICAL: Clear prayer state when date changes to prevent auto-tick appearance
     useEffect(() => {
         if (previousDateRef.current !== selectedDate) {
-            // Date changed - immediately clear state to show unchecked until loaded
             setPrayer(null);
             setLoading(true);
             previousDateRef.current = selectedDate;
@@ -44,12 +56,8 @@ export default function PrayerPage() {
         if (!user) return;
         try {
             const db = getUserDatabase(user.id);
-
-            // Load prayer for the SPECIFIC selected date only
             const datePrayer = await db.prayers.where("date").equals(selectedDate).first();
-            // Only set prayer if it exists for THIS date, otherwise null (all unchecked)
             setPrayer(datePrayer || null);
-
             const weekStart = format(startOfWeek(parseISO(selectedDate), { weekStartsOn: 0 }), "yyyy-MM-dd");
             const weekPrayers = await db.prayers.where("date").between(weekStart, today, true, true).toArray();
             const weekMap = new Map<string, Prayer>();
@@ -60,7 +68,7 @@ export default function PrayerPage() {
         } finally {
             setLoading(false);
         }
-    }, [user, selectedDate, today]);
+    }, [user?.id, selectedDate, today]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -71,7 +79,11 @@ export default function PrayerPage() {
         const currentValue = prayer?.[prayerType] ?? false;
         const newValue = !currentValue;
 
-        // INSTANT UI UPDATE using flushSync for synchronous render
+        if (newValue) {
+            setJustCompleted(prayerType);
+            setTimeout(() => setJustCompleted(null), 800);
+        }
+
         flushSync(() => {
             setPrayer((prev) => {
                 if (prev) return { ...prev, [prayerType]: newValue };
@@ -87,14 +99,12 @@ export default function PrayerPage() {
             });
         });
 
-        // Background DB update (non-blocking)
         pendingUpdates.current.add(prayerType);
         const updateDb = async () => {
             try {
                 const db = getUserDatabase(user.id);
                 const now = Date.now();
                 const existingPrayer = await db.prayers.where("date").equals(selectedDate).first();
-
                 if (existingPrayer) {
                     await db.prayers.update(existingPrayer.id, { [prayerType]: newValue, updatedAt: now });
                     setPrayer(prev => prev ? { ...prev, id: existingPrayer.id } : prev);
@@ -108,11 +118,10 @@ export default function PrayerPage() {
                     await db.prayers.add(newPrayer);
                     setPrayer(prev => prev ? { ...prev, id: newPrayer.id } : newPrayer);
                 }
-                // Sync prayers to cloud
                 syncToCloud(user.id, "prayers");
             } catch (error) {
                 console.error("Failed to toggle prayer:", error);
-                loadData(); // Revert on error
+                loadData();
             } finally {
                 pendingUpdates.current.delete(prayerType);
             }
@@ -120,11 +129,16 @@ export default function PrayerPage() {
         updateDb();
     };
 
-    const completedCount = prayer ? [prayer.fajr, prayer.dhuhr, prayer.asr, prayer.maghrib, prayer.isha].filter(Boolean).length : 0;
+    const completedCount = prayer
+        ? [prayer.fajr, prayer.dhuhr, prayer.asr, prayer.maghrib, prayer.isha].filter(Boolean).length
+        : 0;
     const canEdit = selectedDate >= minDate;
+    const allDone = completedCount === 5;
 
     const goToDate = (days: number) => {
-        const newDate = days > 0 ? format(addDays(parseISO(selectedDate), days), "yyyy-MM-dd") : format(subDays(parseISO(selectedDate), Math.abs(days)), "yyyy-MM-dd");
+        const newDate = days > 0
+            ? format(addDays(parseISO(selectedDate), days), "yyyy-MM-dd")
+            : format(subDays(parseISO(selectedDate), Math.abs(days)), "yyyy-MM-dd");
         if (newDate < minDate || newDate > today) return;
         setSelectedDate(newDate);
     };
@@ -133,118 +147,344 @@ export default function PrayerPage() {
     const weekStart = startOfWeek(parseISO(selectedDate), { weekStartsOn: 0 });
     for (let i = 0; i < 7; i++) weekDays.push(format(addDays(weekStart, i), "yyyy-MM-dd"));
 
+    const arcProgress = (completedCount / 5) * ARC_CIRC;
+
     if (loading) {
         return (
             <div className="flex items-center justify-center h-64">
-                <div className="w-8 h-8 border-3 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                <motion.div
+                    className="w-12 h-12 rounded-full border-2 border-purple-500/30 border-t-purple-500"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
             </div>
         );
     }
 
     return (
-        <div className="space-y-5 pb-4">
-            {/* Header - Slate Purple Matte */}
-            <div className="flex items-center justify-between relative">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-2xl bg-gradient-to-br from-slate-600 to-purple-700/80 text-white shadow-lg">
-                        <Moon className="w-5 h-5" />
+        <div className="pb-6 space-y-5 relative overflow-x-hidden">
+            {/* Ambient background blobs */}
+            <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+                <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl" />
+                <div className="absolute bottom-1/4 right-0 w-80 h-80 bg-indigo-600/5 rounded-full blur-3xl" />
+            </div>
+
+            {/* ── HERO HEADER ── */}
+            <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="relative rounded-3xl overflow-hidden"
+                style={{
+                    background: "linear-gradient(135deg, #0f0c29 0%, #1a1040 40%, #302b63 70%, #24243e 100%)",
+                }}
+            >
+                {/* Star field */}
+                {[...Array(24)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        className="absolute rounded-full bg-white"
+                        style={{
+                            width: i % 5 === 0 ? 2.5 : i % 3 === 0 ? 1.5 : 1,
+                            height: i % 5 === 0 ? 2.5 : i % 3 === 0 ? 1.5 : 1,
+                            top: `${(i * 37 + 10) % 90}%`,
+                            left: `${(i * 53 + 5) % 95}%`,
+                        }}
+                        animate={{ opacity: [0.2, 1, 0.2] }}
+                        transition={{ duration: 2 + (i % 4), repeat: Infinity, delay: i * 0.15 }}
+                    />
+                ))}
+
+                <div className="relative p-6 flex items-center gap-6">
+                    {/* Arc progress */}
+                    <div className="relative flex-shrink-0">
+                        <svg width="128" height="128" viewBox="0 0 128 128" style={{ transform: "rotate(-90deg)" }}>
+                            <circle cx="64" cy="64" r={ARC_R} stroke="rgba(255,255,255,0.08)" strokeWidth="8" fill="none" />
+                            <motion.circle
+                                cx="64" cy="64" r={ARC_R}
+                                stroke="url(#prayerArcGrad)"
+                                strokeWidth="8"
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeDasharray={ARC_CIRC}
+                                initial={{ strokeDashoffset: ARC_CIRC }}
+                                animate={{ strokeDashoffset: ARC_CIRC - arcProgress }}
+                                transition={{ duration: 0.8, ease: "easeOut" }}
+                            />
+                            <defs>
+                                <linearGradient id="prayerArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#a78bfa" />
+                                    <stop offset="100%" stopColor="#60a5fa" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <motion.span
+                                key={completedCount}
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-3xl font-black text-white"
+                            >
+                                {completedCount}
+                            </motion.span>
+                            <span className="text-xs text-white/50 font-medium">of 5</span>
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">Namaz</h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">Track your daily Salah</p>
+
+                    {/* Text */}
+                    <div className="flex-1 min-w-0">
+                        <p className="text-white/50 text-xs font-semibold tracking-widest uppercase mb-1">Daily Salah</p>
+                        <h1 className="text-2xl font-black text-white mb-1">
+                            {format(parseISO(selectedDate), "EEEE")}
+                        </h1>
+                        <p className="text-white/60 text-sm">{format(parseISO(selectedDate), "MMMM d, yyyy")}</p>
+                        <AnimatePresence mode="wait">
+                            {allDone ? (
+                                <motion.div
+                                    key="done"
+                                    initial={{ opacity: 0, y: 6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0 }}
+                                    className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30"
+                                >
+                                    <span className="text-emerald-400 text-xs font-bold">✦ All prayers completed</span>
+                                </motion.div>
+                            ) : (
+                                <motion.p
+                                    key="remaining"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="mt-3 text-white/40 text-sm"
+                                >
+                                    {5 - completedCount} remaining today
+                                </motion.p>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
-                <div className="text-right bg-gradient-to-br from-slate-100 to-purple-50 dark:from-slate-800/50 dark:to-purple-900/30 px-4 py-2 rounded-xl">
-                    <p className="text-2xl font-bold text-slate-700 dark:text-slate-200">{completedCount}<span className="text-lg text-slate-400">/5</span></p>
+            </motion.div>
+
+            {/* ── DATE NAV ── */}
+            <div className="flex items-center gap-3">
+                <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => goToDate(-1)}
+                    disabled={selectedDate <= minDate}
+                    className="p-2.5 rounded-xl bg-card border border-border hover:border-purple-500/50 disabled:opacity-30 transition-colors"
+                >
+                    <ChevronLeft className="w-5 h-5" />
+                </motion.button>
+
+                {/* Week strip */}
+                <div className="flex-1 grid grid-cols-7 gap-1">
+                    {weekDays.map((day, idx) => {
+                        const dp = weeklyData.get(day);
+                        const cnt = dp ? [dp.fajr, dp.dhuhr, dp.asr, dp.maghrib, dp.isha].filter(Boolean).length : 0;
+                        const isSel = day === selectedDate;
+                        const isT = day === today;
+                        const disabled = day > today || day < minDate;
+                        return (
+                            <motion.button
+                                key={day}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => !disabled && setSelectedDate(day)}
+                                disabled={disabled}
+                                className={`py-2 rounded-xl text-center transition-all relative ${isSel
+                                    ? "bg-gradient-to-b from-purple-600 to-indigo-700 text-white shadow-lg shadow-purple-500/30"
+                                    : isT
+                                    ? "bg-purple-500/10 border border-purple-500/30 text-purple-400"
+                                    : disabled
+                                    ? "opacity-25"
+                                    : "bg-card border border-border hover:border-purple-500/40"
+                                    }`}
+                            >
+                                <p className="text-[9px] font-semibold opacity-60">{format(parseISO(day), "EEE")}</p>
+                                <p className="text-sm font-bold">{format(parseISO(day), "d")}</p>
+                                <div className="flex justify-center gap-[2px] mt-0.5">
+                                    {[...Array(5)].map((_, i) => (
+                                        <div
+                                            key={i}
+                                            className={`w-[3px] h-[3px] rounded-full transition-colors ${i < cnt
+                                                ? isSel ? "bg-white" : "bg-purple-400"
+                                                : "bg-slate-600"
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+                            </motion.button>
+                        );
+                    })}
                 </div>
+
+                <motion.button
+                    whileTap={{ scale: 0.92 }}
+                    onClick={() => goToDate(1)}
+                    disabled={selectedDate >= today}
+                    className="p-2.5 rounded-xl bg-card border border-border hover:border-purple-500/50 disabled:opacity-30 transition-colors"
+                >
+                    <ChevronRight className="w-5 h-5" />
+                </motion.button>
             </div>
 
-            {/* Date Navigation - Matte Card */}
-            <div className="flex items-center justify-between bg-gradient-to-r from-slate-50 to-purple-50 dark:from-slate-900/50 dark:to-purple-900/20 rounded-2xl p-3 border border-slate-200 dark:border-slate-700">
-                <button onClick={() => goToDate(-1)} disabled={selectedDate <= minDate} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
-                    <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                </button>
-                <div className="text-center">
-                    <p className="font-semibold text-slate-700 dark:text-slate-200">{format(parseISO(selectedDate), "EEEE, MMM d")}</p>
-                    {selectedDate === today && <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">Today</span>}
-                </div>
-                <button onClick={() => goToDate(1)} disabled={selectedDate >= today} className="p-2.5 rounded-xl hover:bg-white dark:hover:bg-slate-800 disabled:opacity-30 transition-colors">
-                    <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                </button>
-            </div>
-
-            {/* Week View - Minimal Matte */}
-            <div className="grid grid-cols-7 gap-1.5">
-                {weekDays.map((day) => {
-                    const dayPrayer = weeklyData.get(day);
-                    const dayCount = dayPrayer ? [dayPrayer.fajr, dayPrayer.dhuhr, dayPrayer.asr, dayPrayer.maghrib, dayPrayer.isha].filter(Boolean).length : 0;
-                    const isSelected = day === selectedDate;
-                    const isToday = day === today;
-                    const isDisabled = day > today || day < minDate;
-
-                    return (
-                        <button
-                            key={day}
-                            onClick={() => !isDisabled && setSelectedDate(day)}
-                            disabled={isDisabled}
-                            className={`py-2.5 rounded-xl text-center transition-all ${isSelected ? "bg-gradient-to-br from-slate-600 to-purple-700 text-white shadow-lg" : isToday ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : isDisabled ? "opacity-30" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                        >
-                            <p className="text-[10px] font-medium opacity-70">{format(parseISO(day), "EEE")}</p>
-                            <p className="text-sm font-bold">{format(parseISO(day), "d")}</p>
-                            <div className="flex justify-center gap-0.5 mt-1">
-                                {[...Array(5)].map((_, i) => (
-                                    <div key={i} className={`w-1 h-1 rounded-full ${i < dayCount ? (isSelected ? "bg-white" : "bg-purple-500") : "bg-slate-300 dark:bg-slate-600"}`} />
-                                ))}
-                            </div>
-                        </button>
-                    );
-                })}
-            </div>
-
-            {/* Progress Bar - Matte */}
-            <div className="bg-gradient-to-r from-slate-100 to-purple-100 dark:from-slate-800/50 dark:to-purple-900/30 rounded-2xl p-4 border border-slate-200 dark:border-slate-700">
-                <div className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-slate-500 to-purple-600 rounded-full transition-all duration-500 ease-out" style={{ width: `${(completedCount / 5) * 100}%` }} />
-                </div>
-                <p className="text-sm text-center mt-3 text-slate-600 dark:text-slate-400 font-medium">
-                    {completedCount === 5 ? "✨ All prayers completed!" : `${5 - completedCount} remaining`}
-                </p>
-            </div>
-
-            {/* Prayer List - Premium Matte Cards */}
-            <div className="space-y-2.5">
-                {PRAYERS.map((p) => {
+            {/* ── PRAYER CARDS ── */}
+            <div className="space-y-3">
+                {PRAYERS.map((p, idx) => {
                     const isCompleted = prayer?.[p.key] ?? false;
-                    const Icon = p.icon;
+                    const isJust = justCompleted === p.key;
+
                     return (
-                        <button
+                        <motion.button
                             key={p.key}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.07, duration: 0.3 }}
+                            whileTap={canEdit ? { scale: 0.97 } : {}}
                             onClick={() => togglePrayer(p.key)}
                             disabled={!canEdit}
-                            className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-[0.98] border ${isCompleted
-                                ? "bg-gradient-to-r from-slate-100 to-purple-100 dark:from-slate-800/80 dark:to-purple-900/40 border-purple-300 dark:border-purple-700"
-                                : canEdit ? "bg-white dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600" : "bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-800 opacity-50"
-                                }`}
+                            className={`w-full relative overflow-hidden rounded-2xl border transition-all duration-300 ${isCompleted
+                                ? `bg-gradient-to-r ${p.bg} border-white/10`
+                                : "bg-card border-border hover:border-purple-500/30"
+                                } ${!canEdit ? "opacity-60" : ""}`}
                         >
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isCompleted ? "bg-gradient-to-br from-slate-600 to-purple-600 text-white shadow-md" : "bg-slate-100 dark:bg-slate-800 text-slate-500"}`}>
-                                <Icon className="w-5 h-5" />
+                            {/* Completed shimmer sweep */}
+                            <AnimatePresence>
+                                {isJust && (
+                                    <motion.div
+                                        className="absolute inset-0 bg-white/10"
+                                        initial={{ x: "-100%" }}
+                                        animate={{ x: "100%" }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.5 }}
+                                    />
+                                )}
+                            </AnimatePresence>
+
+                            <div className="flex items-center gap-4 p-4">
+                                {/* Icon */}
+                                <motion.div
+                                    animate={isCompleted ? { scale: [1, 1.15, 1] } : {}}
+                                    transition={{ duration: 0.3 }}
+                                    className={`relative w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 text-2xl shadow-lg ${isCompleted
+                                        ? `bg-gradient-to-br ${p.gradient} ${p.glow} shadow-lg`
+                                        : "bg-secondary"
+                                        }`}
+                                >
+                                    {p.emoji}
+                                    {isCompleted && (
+                                        <motion.div
+                                            initial={{ scale: 0 }}
+                                            animate={{ scale: 1 }}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center shadow"
+                                        >
+                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 12 12">
+                                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        </motion.div>
+                                    )}
+                                </motion.div>
+
+                                {/* Text */}
+                                <div className="flex-1 text-left">
+                                    <div className="flex items-baseline gap-2">
+                                        <h3 className="font-bold text-base">{p.name}</h3>
+                                        <span className="text-xs opacity-40 font-medium" style={{ fontFamily: "serif" }}>{p.arabic}</span>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-0.5">{p.time}</p>
+                                </div>
+
+                                {/* Checkbox */}
+                                <motion.div
+                                    animate={isCompleted
+                                        ? { scale: [1, 1.3, 1], backgroundColor: ["#7c3aed", "#7c3aed"] }
+                                        : { scale: 1 }
+                                    }
+                                    transition={{ duration: 0.3 }}
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-colors ${isCompleted
+                                        ? "bg-gradient-to-br from-purple-500 to-indigo-600 border-transparent"
+                                        : "border-border bg-background"
+                                        }`}
+                                >
+                                    <AnimatePresence>
+                                        {isCompleted && (
+                                            <motion.svg
+                                                key="check"
+                                                initial={{ pathLength: 0, opacity: 0 }}
+                                                animate={{ pathLength: 1, opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                className="w-4 h-4 text-white"
+                                                fill="none"
+                                                viewBox="0 0 16 16"
+                                            >
+                                                <motion.path
+                                                    d="M3 8l4 4 6-6"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    initial={{ pathLength: 0 }}
+                                                    animate={{ pathLength: 1 }}
+                                                    transition={{ duration: 0.3 }}
+                                                />
+                                            </motion.svg>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
                             </div>
-                            <div className="flex-1 text-left">
-                                <h3 className="font-semibold text-slate-800 dark:text-slate-100">{p.name}</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-400">{p.time}</p>
-                            </div>
-                            <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${isCompleted ? "bg-purple-600 text-white" : "border-2 border-slate-300 dark:border-slate-600"}`}>
-                                {isCompleted && <Check className="w-4 h-4" />}
-                            </div>
-                        </button>
+                        </motion.button>
                     );
                 })}
             </div>
 
+            {/* ── WEEK STATS ROW ── */}
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-card border border-border rounded-2xl p-4"
+            >
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">This Week</p>
+                <div className="flex items-end justify-between gap-1">
+                    {weekDays.map((day) => {
+                        const dp = weeklyData.get(day);
+                        const cnt = dp ? [dp.fajr, dp.dhuhr, dp.asr, dp.maghrib, dp.isha].filter(Boolean).length : 0;
+                        const isT = day === today;
+                        const isSel = day === selectedDate;
+                        return (
+                            <div key={day} className="flex-1 flex flex-col items-center gap-1">
+                                <div className="w-full h-16 flex flex-col justify-end gap-[2px]">
+                                    {[...Array(5)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ delay: i * 0.04, duration: 0.25 }}
+                                            className={`w-full h-2.5 rounded-sm ${i < cnt
+                                                ? isSel || isT
+                                                    ? "bg-purple-500"
+                                                    : "bg-purple-400/60"
+                                                : "bg-secondary"
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+                                <span className={`text-[9px] font-medium ${isSel ? "text-purple-400" : "text-muted-foreground"}`}>
+                                    {format(parseISO(day), "EEE")}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </motion.div>
+
             {!canEdit && (
-                <p className="text-xs text-center text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 py-2 rounded-xl">⚠️ Can only edit past 2 days</p>
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-xs text-center text-amber-500 bg-amber-500/10 border border-amber-500/20 py-2.5 rounded-xl"
+                >
+                    ⚠️ You can only edit prayers from the past 2 days
+                </motion.p>
             )}
         </div>
     );
 }
-

@@ -1,8 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { Session } from "@supabase/supabase-js";
 import { getSession, onAuthStateChange, isSupabaseConfigured } from "@/lib/supabase";
+
+// Use the return type from getSession rather than importing Session directly
+type SupabaseSession = Awaited<ReturnType<typeof getSession>>;
+type Session = NonNullable<SupabaseSession>;
 
 type Theme = "light" | "dark";
 
@@ -19,67 +22,73 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
     isConfigured: false,
     theme: "dark",
-    setTheme: () => { },
+    setTheme: () => {},
 });
 
 export function useAuth() {
     return useContext(AuthContext);
 }
 
-interface ProvidersProps {
-    children: ReactNode;
-}
-
-export function Providers({ children }: ProvidersProps) {
+export function Providers({ children }: { children: ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const [theme, setThemeState] = useState<Theme>("dark");
     const isConfigured = isSupabaseConfigured();
 
-    // Initialize theme from localStorage
+    // Init theme from localStorage/system preference
     useEffect(() => {
-        const savedMode = localStorage.getItem("nextlife-theme") as Theme | null;
-        const isDark = savedMode === "dark" ||
-            (!savedMode && window.matchMedia("(prefers-color-scheme: dark)").matches);
-
-        const mode: Theme = isDark ? "dark" : "light";
-        setThemeState(mode);
-
-        if (isDark) {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
+        const saved = localStorage.getItem("nextlife-theme") as Theme | null;
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const resolved: Theme = saved === "light" ? "light" : saved === "dark" ? "dark" : prefersDark ? "dark" : "light";
+        setThemeState(resolved);
+        applyTheme(resolved);
     }, []);
+
+    const applyTheme = (t: Theme) => {
+        const root = document.documentElement;
+        if (t === "dark") {
+            root.classList.add("dark");
+            root.classList.remove("light");
+        } else {
+            root.classList.add("light");
+            root.classList.remove("dark");
+        }
+    };
 
     const setTheme = (newTheme: Theme) => {
         setThemeState(newTheme);
         localStorage.setItem("nextlife-theme", newTheme);
-
-        if (newTheme === "dark") {
-            document.documentElement.classList.add("dark");
-        } else {
-            document.documentElement.classList.remove("dark");
-        }
+        applyTheme(newTheme);
     };
 
+    // Auth state management
     useEffect(() => {
         if (!isConfigured) {
+            // Supabase not configured — app works in offline-only mode
             setLoading(false);
             return;
         }
 
-        getSession().then((session) => {
-            setSession(session);
-            setLoading(false);
+        let cancelled = false;
+
+        getSession().then((s) => {
+            if (!cancelled) {
+                setSession(s);
+                setLoading(false);
+            }
         });
 
-        const { unsubscribe } = onAuthStateChange((session) => {
-            setSession(session);
-            setLoading(false);
+        const { unsubscribe } = onAuthStateChange((s) => {
+            if (!cancelled) {
+                setSession(s);
+                setLoading(false);
+            }
         });
 
-        return () => unsubscribe();
+        return () => {
+            cancelled = true;
+            unsubscribe();
+        };
     }, [isConfigured]);
 
     return (

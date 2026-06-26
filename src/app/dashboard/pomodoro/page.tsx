@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/hooks/use-user";
 import { getUserDatabase } from "@/lib/db/database";
+import { syncToCloud } from "@/lib/sync";
 import { generateId, getToday, getCurrentTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import type { PomodoroSession } from "@/types";
-import { Timer, Play, Pause, RotateCcw, Coffee, Brain, Check, Settings, X } from "lucide-react";
+import { Play, Pause, RotateCcw, Coffee, Brain, Check, Settings, X, Flame, Clock } from "lucide-react";
 
 type SessionType = "work" | "short_break" | "long_break";
 
@@ -17,20 +19,69 @@ const DEFAULT_SETTINGS = {
     sessionsBeforeLongBreak: 4,
 };
 
+const SESSION_CONFIG = {
+    work: {
+        label: "Focus",
+        shortLabel: "Work",
+        icon: Brain,
+        grad: "from-violet-600 to-purple-700",
+        ring: "#8b5cf6",
+        ringGlow: "rgba(139,92,246,0.4)",
+        heroBg: "linear-gradient(135deg, #1a0533 0%, #2d1160 40%, #1a0533 100%)",
+        accent: "#a78bfa",
+        tabActive: "from-violet-500 to-purple-600",
+        emoji: "🧠",
+    },
+    short_break: {
+        label: "Short Break",
+        shortLabel: "Short",
+        icon: Coffee,
+        grad: "from-emerald-500 to-teal-600",
+        ring: "#10b981",
+        ringGlow: "rgba(16,185,129,0.4)",
+        heroBg: "linear-gradient(135deg, #022c22 0%, #064e3b 40%, #022c22 100%)",
+        accent: "#34d399",
+        tabActive: "from-emerald-500 to-teal-600",
+        emoji: "☕",
+    },
+    long_break: {
+        label: "Long Break",
+        shortLabel: "Long",
+        icon: Coffee,
+        grad: "from-sky-500 to-blue-700",
+        ring: "#0ea5e9",
+        ringGlow: "rgba(14,165,233,0.4)",
+        heroBg: "linear-gradient(135deg, #0a1628 0%, #1e3a5f 40%, #0a1628 100%)",
+        accent: "#38bdf8",
+        tabActive: "from-sky-500 to-blue-600",
+        emoji: "🌿",
+    },
+} as const;
+
+const RING_SIZE = 220;
+const RING_R = 90;
+const RING_CIRC = 2 * Math.PI * RING_R;
+
 export default function PomodoroPage() {
     const { user } = useUser();
     const { toast } = useToast();
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+    const [draftSettings, setDraftSettings] = useState(DEFAULT_SETTINGS);
     const [sessionType, setSessionType] = useState<SessionType>("work");
-    const [timeLeft, setTimeLeft] = useState(settings.workDuration * 60);
+    const [timeLeft, setTimeLeft] = useState(DEFAULT_SETTINGS.workDuration * 60);
     const [isRunning, setIsRunning] = useState(false);
     const [sessionsCompleted, setSessionsCompleted] = useState(0);
     const [showSettings, setShowSettings] = useState(false);
     const [todaySessions, setTodaySessions] = useState<PomodoroSession[]>([]);
+    const [justCompleted, setJustCompleted] = useState(false);
 
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const rafIdRef = useRef<number | null>(null);
+    const timerStartRef = useRef<{ at: number; from: number } | null>(null);
     const startTimeRef = useRef<string>("");
+
+    const cfg = SESSION_CONFIG[sessionType];
+    const Icon = cfg.icon;
 
     const getDuration = useCallback((type: SessionType) => {
         switch (type) {
@@ -46,20 +97,22 @@ export default function PomodoroPage() {
             const db = getUserDatabase(user.id);
             const sessions = await db.pomodoroSessions.where("date").equals(getToday()).toArray();
             setTodaySessions(sessions);
-            setSessionsCompleted(sessions.filter((s) => s.type === "work" && s.completed).length);
-        } catch (error) {
-            console.error("Failed to load sessions:", error);
+            setSessionsCompleted(sessions.filter(s => s.type === "work" && s.completed).length);
+        } catch (err) {
+            console.error("Failed to load sessions:", err);
         }
-    }, [user]);
+    }, [user?.id]);
 
     useEffect(() => {
         loadTodaySessions();
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [loadTodaySessions]);
 
     const handleSessionComplete = useCallback(async () => {
         setIsRunning(false);
-        try { const audio = new Audio("/notification.mp3"); audio.play().catch(() => { }); } catch { }
+        setJustCompleted(true);
+        setTimeout(() => setJustCompleted(false), 1500);
+
+        try { const a = new Audio("/notification.mp3"); a.play().catch(() => {}); } catch {}
 
         if (user && sessionType === "work") {
             try {
@@ -67,20 +120,20 @@ export default function PomodoroPage() {
                 const now = Date.now();
                 const session: PomodoroSession = {
                     id: generateId(), userId: user.id, date: getToday(),
-                    startTime: startTimeRef.current || getCurrentTime(), endTime: getCurrentTime(),
+                    startTime: startTimeRef.current || getCurrentTime(),
+                    endTime: getCurrentTime(),
                     duration: settings.workDuration, type: "work", completed: true,
                     createdAt: now, updatedAt: now, syncStatus: "pending", version: 1,
                 };
                 await db.pomodoroSessions.add(session);
+                syncToCloud(user.id, "pomodoroSessions");
                 loadTodaySessions();
-            } catch (error) {
-                console.error("Failed to save session:", error);
-            }
+            } catch {}
         }
 
         toast({
-            title: sessionType === "work" ? "Great work! 🎉" : "Break's over!",
-            description: sessionType === "work" ? "Time for a break!" : "Ready to focus again?",
+            title: sessionType === "work" ? "Focus session complete! 🎉" : "Break time over!",
+            description: sessionType === "work" ? "Time for a break." : "Ready to focus again?",
         });
 
         if (sessionType === "work") {
@@ -97,165 +150,417 @@ export default function PomodoroPage() {
             setSessionType("work");
             setTimeLeft(settings.workDuration * 60);
         }
-    }, [user, sessionType, settings, sessionsCompleted, toast, loadTodaySessions]);
+    }, [user?.id, sessionType, settings, sessionsCompleted, toast, loadTodaySessions]);
 
+    // Always-current ref to avoid stale closures in RAF callback
+    const handleSessionCompleteRef = useRef(handleSessionComplete);
+    useEffect(() => { handleSessionCompleteRef.current = handleSessionComplete; });
+
+    // Wall-clock based timer: compute remaining from timestamps, never drifts, immune to batching/Strict Mode
     useEffect(() => {
-        if (isRunning) {
-            intervalRef.current = setInterval(() => {
-                setTimeLeft((prev) => {
-                    if (prev <= 1) { handleSessionComplete(); return 0; }
-                    return prev - 1;
-                });
-            }, 1000);
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
+        if (!isRunning) {
+            if (rafIdRef.current !== null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
+            timerStartRef.current = null;
+            return;
         }
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-    }, [isRunning, handleSessionComplete]);
+        timerStartRef.current = { at: Date.now(), from: timeLeft };
+        const tick = () => {
+            if (!timerStartRef.current) return;
+            const remaining = Math.max(0, timerStartRef.current.from - Math.floor((Date.now() - timerStartRef.current.at) / 1000));
+            setTimeLeft(remaining);
+            if (remaining <= 0) { handleSessionCompleteRef.current(); return; }
+            rafIdRef.current = requestAnimationFrame(tick);
+        };
+        rafIdRef.current = requestAnimationFrame(tick);
+        return () => { if (rafIdRef.current !== null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; } };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isRunning]); // timeLeft captured in timerStartRef.from at start — intentionally not a dep
 
     const toggleTimer = () => {
         if (!isRunning) startTimeRef.current = getCurrentTime();
-        setIsRunning(!isRunning);
+        setIsRunning(p => !p);
     };
 
     const resetTimer = () => { setIsRunning(false); setTimeLeft(getDuration(sessionType)); };
 
-    const switchSession = (type: SessionType) => { setIsRunning(false); setSessionType(type); setTimeLeft(getDuration(type)); };
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    const switchSession = (type: SessionType) => {
+        setIsRunning(false);
+        setSessionType(type);
+        setTimeLeft(getDuration(type));
     };
+
+    const openSettings = () => {
+        setDraftSettings({ ...settings });
+        setShowSettings(true);
+    };
+
+    const saveSettings = () => {
+        setSettings({ ...draftSettings });
+        setTimeLeft(draftSettings.workDuration * 60);
+        setSessionType("work");
+        setIsRunning(false);
+        setShowSettings(false);
+    };
+
+    const formatTime = (s: number) =>
+        `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
     const progress = 1 - timeLeft / getDuration(sessionType);
-    const totalFocusMinutes = todaySessions.filter((s) => s.type === "work" && s.completed).reduce((sum, s) => sum + s.duration, 0);
-
-    const sessionConfig = {
-        work: { icon: Brain, color: "text-red-500", bg: "bg-red-500", gradient: "from-red-500 to-orange-500", label: "Focus" },
-        short_break: { icon: Coffee, color: "text-green-500", bg: "bg-green-500", gradient: "from-green-500 to-emerald-500", label: "Short" },
-        long_break: { icon: Coffee, color: "text-blue-500", bg: "bg-blue-500", gradient: "from-blue-500 to-cyan-500", label: "Long" },
-    };
-
-    const current = sessionConfig[sessionType];
-    const Icon = current.icon;
+    const totalFocusMin = todaySessions.filter(s => s.type === "work" && s.completed).reduce((sum, s) => sum + s.duration, 0);
+    const sessUntilLong = settings.sessionsBeforeLongBreak - (sessionsCompleted % settings.sessionsBeforeLongBreak);
+    const filledDots = sessionsCompleted % settings.sessionsBeforeLongBreak;
 
     return (
-        <div className="space-y-6 pb-24 md:pb-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-gradient-to-br from-yellow-500 to-orange-600 text-white">
-                            <Timer className="w-6 h-6" />
+        <div className="space-y-5 pb-6">
+            {/* ── HERO TIMER ── */}
+            <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="relative rounded-3xl overflow-hidden"
+                style={{ background: "linear-gradient(135deg, #0f0020 0%, #1a0040 40%, #0f0020 100%)" }}
+            >
+                {/* Ambient blobs — color shifts with session via animate */}
+                {[...Array(3)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        className="absolute rounded-full pointer-events-none"
+                        style={{
+                            width: 140 + i * 60,
+                            height: 140 + i * 60,
+                            top: `-${30 + i * 20}%`,
+                            right: `-${10 + i * 10}%`,
+                            filter: "blur(40px)",
+                        }}
+                        animate={{
+                            background: cfg.ring,
+                            opacity: [0.05, 0.10, 0.05],
+                            scale: [1, 1.1, 1],
+                        }}
+                        transition={{ duration: 4 + i, repeat: Infinity, ease: "easeInOut", delay: i }}
+                    />
+                ))}
+
+                <div className="relative p-6 pb-8">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <p className="text-white/40 text-xs font-semibold tracking-widest uppercase">Focus Timer</p>
+                            <h1 className="text-xl font-black text-white mt-0.5">{cfg.emoji} {cfg.label}</h1>
                         </div>
-                        Pomodoro
-                    </h1>
-                    <p className="text-muted-foreground mt-1">Focus in intervals, rest, repeat</p>
-                </div>
-                <button onClick={() => setShowSettings(!showSettings)} className="p-3 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
-                    <Settings className="w-5 h-5" />
-                </button>
-            </div>
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={openSettings}
+                            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition-colors"
+                        >
+                            <Settings className="w-5 h-5 text-white/70" />
+                        </motion.button>
+                    </div>
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <div className="p-4 rounded-xl md:rounded-2xl bg-gradient-to-br from-yellow-500/10 to-orange-500/10 border border-yellow-500/20">
-                    <p className="text-2xl md:text-3xl font-bold">{sessionsCompleted}</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Sessions Today</p>
-                </div>
-                <div className="p-4 rounded-xl md:rounded-2xl bg-card border-2 border-border">
-                    <p className="text-2xl md:text-3xl font-bold">{totalFocusMinutes}m</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Focus Time</p>
-                </div>
-                <div className="p-4 rounded-xl md:rounded-2xl bg-card border-2 border-border">
-                    <p className="text-2xl md:text-3xl font-bold">{settings.sessionsBeforeLongBreak - (sessionsCompleted % settings.sessionsBeforeLongBreak)}</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Until Long Break</p>
-                </div>
-                <div className="p-4 rounded-xl md:rounded-2xl bg-card border-2 border-border">
-                    <p className="text-2xl md:text-3xl font-bold text-yellow-500">🔥 {Math.floor(totalFocusMinutes / 60)}h</p>
-                    <p className="text-xs md:text-sm text-muted-foreground">Total Hours</p>
-                </div>
-            </div>
+                    {/* Session type tabs */}
+                    <div className="flex gap-2 mb-8">
+                        {(["work", "short_break", "long_break"] as SessionType[]).map(type => {
+                            const c = SESSION_CONFIG[type];
+                            const active = sessionType === type;
+                            return (
+                                <motion.button
+                                    key={type}
+                                    whileTap={{ scale: 0.92 }}
+                                    onClick={() => switchSession(type)}
+                                    className={`relative flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all overflow-hidden ${active ? "text-white" : "text-white/40 hover:text-white/60"}`}
+                                >
+                                    {active && (
+                                        <motion.div
+                                            layoutId="pomTab"
+                                            className={`absolute inset-0 rounded-xl bg-gradient-to-r ${c.tabActive}`}
+                                            style={{ boxShadow: `0 4px 16px ${c.ringGlow}` }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        />
+                                    )}
+                                    {!active && <div className="absolute inset-0 rounded-xl bg-white/5" />}
+                                    <span className="relative">{c.shortLabel}</span>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
 
-            {/* Timer */}
-            <div className="flex flex-col items-center justify-center py-6 md:py-8">
-                {/* Session Type Tabs */}
-                <div className="flex gap-2 mb-6 md:mb-8">
-                    {(["work", "short_break", "long_break"] as SessionType[]).map((type) => {
-                        const config = sessionConfig[type];
+                    {/* Timer ring */}
+                    <div className="flex flex-col items-center">
+                        <div className="relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+                            {/* Outer glow when running */}
+                            <AnimatePresence>
+                                {isRunning && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="absolute inset-0 rounded-full"
+                                        style={{ boxShadow: `0 0 60px ${cfg.ringGlow}, 0 0 120px ${cfg.ringGlow}` }}
+                                    />
+                                )}
+                            </AnimatePresence>
+
+                            <svg width={RING_SIZE} height={RING_SIZE} viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`} style={{ transform: "rotate(-90deg)" }}>
+                                <circle
+                                    cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                                    stroke="rgba(255,255,255,0.07)" strokeWidth="12" fill="none"
+                                />
+                                <motion.circle
+                                    cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+                                    strokeWidth="12"
+                                    fill="none"
+                                    strokeLinecap="round"
+                                    strokeDasharray={RING_CIRC}
+                                    initial={{ strokeDashoffset: RING_CIRC, stroke: cfg.accent }}
+                                    animate={{
+                                        strokeDashoffset: RING_CIRC * (1 - progress),
+                                        stroke: cfg.accent,
+                                    }}
+                                    transition={{ duration: 0.5, ease: "easeOut" }}
+                                />
+                            </svg>
+
+                            {/* Center — plain div so React can update text freely without Framer interference */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                {justCompleted ? (
+                                    <Check className="w-14 h-14" style={{ color: cfg.accent }} />
+                                ) : (
+                                    <div className="flex flex-col items-center">
+                                        <Icon className="w-9 h-9 mb-2" style={{ color: cfg.accent }} />
+                                        <span className="text-4xl font-black font-mono text-white tracking-tight tabular-nums">
+                                            {formatTime(timeLeft)}
+                                        </span>
+                                        <span className="text-xs mt-1 font-medium" style={{ color: cfg.accent + "99" }}>
+                                            {cfg.label}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="flex items-center gap-5 mt-7">
+                            <motion.button
+                                whileTap={{ scale: 0.88 }}
+                                onClick={resetTimer}
+                                className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center transition-colors"
+                            >
+                                <RotateCcw className="w-5 h-5 text-white/60" />
+                            </motion.button>
+
+                            <motion.button
+                                whileTap={{ scale: 0.92 }}
+                                onClick={toggleTimer}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center text-white shadow-xl bg-gradient-to-br ${cfg.grad}`}
+                                style={{ boxShadow: `0 8px 32px ${cfg.ringGlow}` }}
+                            >
+                                <AnimatePresence mode="wait">
+                                    <motion.div
+                                        key={isRunning ? "pause" : "play"}
+                                        initial={{ scale: 0, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0, opacity: 0 }}
+                                        transition={{ duration: 0.15 }}
+                                    >
+                                        {isRunning ? <Pause className="w-9 h-9" /> : <Play className="w-9 h-9 ml-1" />}
+                                    </motion.div>
+                                </AnimatePresence>
+                            </motion.button>
+
+                            <motion.button
+                                whileTap={{ scale: 0.88 }}
+                                onClick={handleSessionComplete}
+                                className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 flex items-center justify-center transition-colors"
+                            >
+                                <Check className="w-5 h-5 text-white/60" />
+                            </motion.button>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* ── STATS ── */}
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="grid grid-cols-3 gap-3"
+            >
+                {[
+                    { icon: Brain, label: "Sessions", value: sessionsCompleted, color: "#a78bfa" },
+                    { icon: Clock, label: "Focus Time", value: `${totalFocusMin}m`, color: "#f59e0b" },
+                    { icon: Flame, label: "Until Long", value: sessUntilLong, color: "#f97316" },
+                ].map((stat, i) => (
+                    <motion.div
+                        key={stat.label}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 + i * 0.07 }}
+                        className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-1"
+                    >
+                        <stat.icon className="w-5 h-5 mb-1" style={{ color: stat.color }} />
+                        <p className="text-2xl font-black">{stat.value}</p>
+                        <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    </motion.div>
+                ))}
+            </motion.div>
+
+            {/* ── SESSION DOTS ── */}
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-card border border-border rounded-2xl p-4"
+            >
+                <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progress to Long Break</p>
+                    <span className="text-xs font-bold text-violet-400">
+                        {filledDots}/{settings.sessionsBeforeLongBreak}
+                    </span>
+                </div>
+                <div className="flex gap-2">
+                    {Array.from({ length: settings.sessionsBeforeLongBreak }).map((_, i) => {
+                        const filled = i < filledDots;
                         return (
-                            <button key={type} onClick={() => switchSession(type)} className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${sessionType === type ? `bg-gradient-to-r ${config.gradient} text-white shadow-lg` : "bg-secondary hover:bg-secondary/80"}`}>
-                                {config.label}
-                            </button>
+                            <motion.div
+                                key={i}
+                                initial={{ scaleX: 0, opacity: 0 }}
+                                animate={{ scaleX: 1, opacity: 1 }}
+                                transition={{ delay: 0.35 + i * 0.05 }}
+                                style={{ originX: 0 }}
+                                className="flex-1 h-2.5 rounded-full overflow-hidden bg-secondary"
+                            >
+                                {filled && (
+                                    <motion.div
+                                        initial={{ scaleX: 0 }}
+                                        animate={{ scaleX: 1 }}
+                                        style={{ originX: 0 }}
+                                        className="w-full h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full"
+                                    />
+                                )}
+                            </motion.div>
                         );
                     })}
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                    {sessUntilLong === settings.sessionsBeforeLongBreak
+                        ? "Start your first session!"
+                        : `${sessUntilLong} more session${sessUntilLong === 1 ? "" : "s"} until a long break`}
+                </p>
+            </motion.div>
 
-                {/* Timer Circle */}
-                <div className="relative w-64 h-64 md:w-72 md:h-72">
-                    <svg className="w-full h-full -rotate-90">
-                        <circle cx="50%" cy="50%" r="46%" stroke="currentColor" strokeWidth="8" fill="none" className="text-secondary" />
-                        <circle cx="50%" cy="50%" r="46%" stroke="currentColor" strokeWidth="8" fill="none"
-                            strokeDasharray={`${2 * Math.PI * 46}%`}
-                            strokeDashoffset={`${2 * Math.PI * 46 * (1 - progress)}%`}
-                            strokeLinecap="round" className={`${current.color} transition-all duration-1000`}
-                        />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <Icon className={`w-8 h-8 md:w-10 md:h-10 ${current.color} mb-2`} />
-                        <span className="text-4xl md:text-5xl font-bold font-mono">{formatTime(timeLeft)}</span>
-                        <span className="text-xs md:text-sm text-muted-foreground mt-2">{current.label} Time</span>
+            {/* ── TODAY'S SESSIONS ── */}
+            {todaySessions.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-card border border-border rounded-2xl p-4"
+                >
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                        Today · {todaySessions.filter(s => s.completed && s.type === "work").length} completed
+                    </p>
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                        {[...todaySessions].reverse().map((session, i) => (
+                            <motion.div
+                                key={session.id}
+                                initial={{ opacity: 0, x: -8 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: 0.45 + i * 0.04 }}
+                                className="flex items-center gap-3 p-2.5 rounded-xl bg-secondary/50"
+                            >
+                                <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center text-base flex-shrink-0">
+                                    {session.type === "work" ? "🧠" : "☕"}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold">
+                                        {session.type === "work" ? `${session.duration}min Focus` : "Break"}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">{session.startTime} – {session.endTime}</p>
+                                </div>
+                                {session.completed && <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+                            </motion.div>
+                        ))}
                     </div>
-                </div>
-
-                {/* Controls */}
-                <div className="flex items-center gap-4 mt-6 md:mt-8">
-                    <button onClick={resetTimer} className="p-3 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
-                        <RotateCcw className="w-6 h-6" />
-                    </button>
-                    <button onClick={toggleTimer} className={`w-16 h-16 md:w-18 md:h-18 rounded-full flex items-center justify-center text-white transition-all shadow-xl bg-gradient-to-r ${current.gradient} hover:opacity-90`}>
-                        {isRunning ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-                    </button>
-                    <button onClick={handleSessionComplete} className="p-3 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors">
-                        <Check className="w-6 h-6" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Settings Modal */}
-            {showSettings && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                    <div className="bg-card border-t md:border border-border rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-md max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95">
-                        <div className="sticky top-0 bg-card flex items-center justify-between p-4 border-b border-border">
-                            <h2 className="text-lg font-bold">⚙️ Timer Settings</h2>
-                            <button onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-secondary"><X className="w-5 h-5" /></button>
-                        </div>
-                        <div className="p-4 md:p-5 space-y-4">
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Focus Duration (minutes)</label>
-                                <input type="number" value={settings.workDuration} onChange={(e) => setSettings({ ...settings, workDuration: parseInt(e.target.value) || 25 })} min={1} max={60} className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-yellow-500 outline-none font-bold" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Short Break (minutes)</label>
-                                <input type="number" value={settings.shortBreakDuration} onChange={(e) => setSettings({ ...settings, shortBreakDuration: parseInt(e.target.value) || 5 })} min={1} max={30} className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-yellow-500 outline-none font-bold" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Long Break (minutes)</label>
-                                <input type="number" value={settings.longBreakDuration} onChange={(e) => setSettings({ ...settings, longBreakDuration: parseInt(e.target.value) || 15 })} min={1} max={60} className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-yellow-500 outline-none font-bold" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-semibold mb-2">Sessions Before Long Break</label>
-                                <input type="number" value={settings.sessionsBeforeLongBreak} onChange={(e) => setSettings({ ...settings, sessionsBeforeLongBreak: parseInt(e.target.value) || 4 })} min={1} max={10} className="w-full px-4 py-3 rounded-xl bg-secondary border-2 border-transparent focus:border-yellow-500 outline-none font-bold" />
-                            </div>
-                        </div>
-                        <div className="p-4 flex gap-3 border-t border-border">
-                            <button onClick={() => { setSettings(DEFAULT_SETTINGS); setTimeLeft(DEFAULT_SETTINGS.workDuration * 60); }} className="flex-1 py-3 rounded-xl bg-secondary font-semibold">Reset</button>
-                            <button onClick={() => { setShowSettings(false); setTimeLeft(getDuration(sessionType)); }} className="flex-1 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white font-semibold">Save</button>
-                        </div>
-                    </div>
-                </div>
+                </motion.div>
             )}
+
+            {/* ── SETTINGS MODAL ── */}
+            <AnimatePresence>
+                {showSettings && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end md:items-center justify-center z-50 p-4"
+                        onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}
+                    >
+                        <motion.div
+                            initial={{ y: 80, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            exit={{ y: 80, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                            className="bg-card border border-border rounded-2xl shadow-2xl w-full md:max-w-md overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between p-4 border-b border-border">
+                                <h2 className="text-base font-bold flex items-center gap-2">
+                                    <Settings className="w-4 h-4 text-violet-400" /> Timer Settings
+                                </h2>
+                                <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-secondary">
+                                    <X className="w-4 h-4" />
+                                </motion.button>
+                            </div>
+                            <div className="p-4 space-y-5">
+                                {[
+                                    { key: "workDuration", label: "Focus Duration", unit: "min", min: 1, max: 60 },
+                                    { key: "shortBreakDuration", label: "Short Break", unit: "min", min: 1, max: 30 },
+                                    { key: "longBreakDuration", label: "Long Break", unit: "min", min: 1, max: 60 },
+                                    { key: "sessionsBeforeLongBreak", label: "Sessions Before Long Break", unit: "", min: 1, max: 10 },
+                                ].map(field => (
+                                    <div key={field.key}>
+                                        <label className="block text-sm font-semibold mb-2 text-muted-foreground">
+                                            {field.label} {field.unit && <span className="text-xs font-normal">({field.unit})</span>}
+                                        </label>
+                                        <div className="flex items-center gap-3">
+                                            <motion.button
+                                                whileTap={{ scale: 0.9 }}
+                                                onClick={() => setDraftSettings(d => ({ ...d, [field.key]: Math.max(field.min, (d as Record<string,number>)[field.key] - 1) }))}
+                                                className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center font-bold text-lg hover:bg-secondary/80"
+                                            >
+                                                −
+                                            </motion.button>
+                                            <p className="flex-1 text-center text-xl font-black">{(draftSettings as Record<string,number>)[field.key]}</p>
+                                            <motion.button
+                                                whileTap={{ scale: 0.9 }}
+                                                onClick={() => setDraftSettings(d => ({ ...d, [field.key]: Math.min(field.max, (d as Record<string,number>)[field.key] + 1) }))}
+                                                className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center font-bold text-lg hover:bg-secondary/80"
+                                            >
+                                                +
+                                            </motion.button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="p-4 pt-0 flex gap-3">
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setDraftSettings({ ...DEFAULT_SETTINGS })}
+                                    className="flex-1 py-3 rounded-xl bg-secondary font-semibold text-sm"
+                                >
+                                    Reset
+                                </motion.button>
+                                <motion.button
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={saveSettings}
+                                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold text-sm shadow-lg shadow-violet-900/30"
+                                >
+                                    Save
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

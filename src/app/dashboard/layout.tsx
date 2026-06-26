@@ -9,58 +9,38 @@ import { useAuthStore } from "@/stores/auth";
 import { signOut } from "@/lib/supabase";
 import { syncAllFromCloud, syncAllToCloud, isCloudSyncAvailable } from "@/lib/sync";
 import {
-    Home,
-    CheckCircle2,
-    Moon,
-    Bed,
-    Utensils,
-    Droplets,
-    ListTodo,
-    Timer,
-    BookOpen,
-    Lightbulb,
-    Wallet,
-    BarChart3,
-    Settings,
-    LogOut,
-    Menu,
-    X,
-    Sparkles,
-    User,
-    Sun,
-    Dumbbell,
-    Cloud,
-    CloudOff,
-    RefreshCw,
+    Home, CheckCircle2, Moon, Bed, Utensils, Droplets, ListTodo,
+    Timer, BookOpen, Lightbulb, Wallet, BarChart3, Settings, LogOut,
+    Menu, X, Sparkles, User, Sun, Dumbbell, Cloud, CloudOff, RefreshCw,
 } from "lucide-react";
 
-// Navigation item mapping for mobile nav customization
-const NAV_MAP: Record<string, { href: string; icon: React.ElementType; label: string; color: string }> = {
-    home: { href: "/dashboard", icon: Home, label: "Home", color: "text-violet-500" },
-    habits: { href: "/dashboard/habits", icon: CheckCircle2, label: "Habits", color: "text-green-500" },
-    prayer: { href: "/dashboard/prayer", icon: Moon, label: "Namaz", color: "text-purple-500" },
-    sleep: { href: "/dashboard/sleep", icon: Bed, label: "Sleep", color: "text-indigo-500" },
-    meals: { href: "/dashboard/meals", icon: Utensils, label: "Meals", color: "text-orange-500" },
-    water: { href: "/dashboard/water", icon: Droplets, label: "Water", color: "text-blue-500" },
-    tasks: { href: "/dashboard/tasks", icon: ListTodo, label: "Tasks", color: "text-red-500" },
-    pomodoro: { href: "/dashboard/pomodoro", icon: Timer, label: "Focus", color: "text-yellow-500" },
-    journal: { href: "/dashboard/journal", icon: BookOpen, label: "Journal", color: "text-pink-500" },
-    vault: { href: "/dashboard/vault", icon: Lightbulb, label: "Vault", color: "text-cyan-500" },
-    finance: { href: "/dashboard/finance", icon: Wallet, label: "Money", color: "text-emerald-500" },
-    fitness: { href: "/dashboard/fitness", icon: Dumbbell, label: "Fitness", color: "text-teal-500" },
-    insights: { href: "/dashboard/insights", icon: BarChart3, label: "Insights", color: "text-violet-500" },
+const NAV_MAP: Record<string, { href: string; icon: React.ElementType; label: string; gradient: string; glow: string }> = {
+    home:     { href: "/dashboard",           icon: Home,         label: "Home",    gradient: "from-violet-500 to-purple-600",   glow: "shadow-violet-500/20" },
+    habits:   { href: "/dashboard/habits",    icon: CheckCircle2, label: "Habits",  gradient: "from-emerald-500 to-green-600",   glow: "shadow-emerald-500/20" },
+    prayer:   { href: "/dashboard/prayer",    icon: Moon,         label: "Namaz",   gradient: "from-violet-500 to-indigo-600",   glow: "shadow-violet-500/20" },
+    sleep:    { href: "/dashboard/sleep",     icon: Bed,          label: "Sleep",   gradient: "from-indigo-500 to-blue-600",     glow: "shadow-indigo-500/20" },
+    water:    { href: "/dashboard/water",     icon: Droplets,     label: "Water",   gradient: "from-cyan-500 to-blue-500",       glow: "shadow-cyan-500/20" },
+    meals:    { href: "/dashboard/meals",     icon: Utensils,     label: "Meals",   gradient: "from-amber-500 to-orange-500",    glow: "shadow-amber-500/20" },
+    tasks:    { href: "/dashboard/tasks",     icon: ListTodo,     label: "Tasks",   gradient: "from-rose-500 to-pink-500",       glow: "shadow-rose-500/20" },
+    pomodoro: { href: "/dashboard/pomodoro",  icon: Timer,        label: "Focus",   gradient: "from-yellow-500 to-amber-500",    glow: "shadow-yellow-500/20" },
+    journal:  { href: "/dashboard/journal",   icon: BookOpen,     label: "Journal", gradient: "from-pink-500 to-rose-500",       glow: "shadow-pink-500/20" },
+    vault:    { href: "/dashboard/vault",     icon: Lightbulb,    label: "Vault",   gradient: "from-sky-500 to-blue-500",        glow: "shadow-sky-500/20" },
+    finance:  { href: "/dashboard/finance",   icon: Wallet,       label: "Finance", gradient: "from-green-500 to-emerald-500",   glow: "shadow-green-500/20" },
+    fitness:  { href: "/dashboard/fitness",   icon: Dumbbell,     label: "Fitness", gradient: "from-teal-500 to-cyan-500",       glow: "shadow-teal-500/20" },
+    insights: { href: "/dashboard/insights",  icon: BarChart3,    label: "Insights",gradient: "from-purple-500 to-violet-600",   glow: "shadow-purple-500/20" },
 };
 
 const NAV_ITEMS = Object.values(NAV_MAP);
-
-// Default mobile nav items
 const DEFAULT_MOBILE_NAV = ["home", "habits", "prayer", "journal", "finance"];
 
-export default function DashboardLayout({
-    children,
-}: {
-    children: React.ReactNode;
-}) {
+const SYNC_LABELS: Record<string, string> = {
+    idle: "Cloud Sync",
+    syncing: "Syncing...",
+    synced: "Synced",
+    error: "Sync Error",
+};
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
     const { session, loading, theme, setTheme } = useAuth();
@@ -70,26 +50,35 @@ export default function DashboardLayout({
     const [initialized, setInitialized] = useState(false);
     const [mobileNavItems, setMobileNavItems] = useState<string[]>(DEFAULT_MOBILE_NAV);
     const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced" | "error">("idle");
+    const [localAvatar, setLocalAvatar] = useState<string | null>(null);
+    const [localName, setLocalName]     = useState<string | null>(null);
 
-    // Load pinned nav items from localStorage
+    // Load pinned nav items
     useEffect(() => {
         if (typeof window !== "undefined") {
             const saved = localStorage.getItem("nextlife-pinned-nav");
             if (saved) {
-                try {
-                    setMobileNavItems(JSON.parse(saved));
-                } catch (e) {
-                    console.error("Failed to parse pinned nav", e);
-                }
+                try { setMobileNavItems(JSON.parse(saved)); } catch { /* ignore */ }
             }
         }
     }, []);
 
-    // Initialize local user data and sync from cloud when session is available
+    // Read localStorage profile overrides (avatar + display name)
     useEffect(() => {
-        const initAndSync = async () => {
+        if (!user?.id) return;
+        const readProfile = () => {
+            setLocalAvatar(localStorage.getItem(`nextlife_avatar_${user.id}`));
+            setLocalName(localStorage.getItem(`nextlife_name_${user.id}`));
+        };
+        readProfile();
+        window.addEventListener("nextlife-profile-updated", readProfile);
+        return () => window.removeEventListener("nextlife-profile-updated", readProfile);
+    }, [user?.id]);
+
+    // Init user and sync from cloud on login
+    useEffect(() => {
+        const init = async () => {
             if (session?.user && !initialized) {
-                // First initialize the local user
                 await initializeUser(
                     session.user.id,
                     session.user.email || "",
@@ -97,253 +86,267 @@ export default function DashboardLayout({
                 );
                 setInitialized(true);
 
-                // Then sync data from cloud
-                setSyncStatus("syncing");
-                try {
-                    const result = await syncAllFromCloud(session.user.id);
-                    setSyncStatus(result.success ? "synced" : "error");
-                    if (result.success) {
-                        console.log("✓ Cloud sync complete - data loaded from cloud");
+                if (isCloudSyncAvailable()) {
+                    setSyncStatus("syncing");
+                    try {
+                        const result = await syncAllFromCloud(session.user.id);
+                        setSyncStatus(result.success ? "synced" : "error");
+                    } catch {
+                        setSyncStatus("error");
                     }
-                } catch (error) {
-                    console.error("Cloud sync error:", error);
-                    setSyncStatus("error");
                 }
             }
         };
-
-        initAndSync();
+        init();
     }, [session, initializeUser, initialized]);
 
-    // Redirect to login if not authenticated
+    // Redirect to login
     useEffect(() => {
-        if (!loading && !session) {
-            router.push("/login");
-        }
+        if (!loading && !session) router.push("/login");
     }, [loading, session, router]);
 
-    useEffect(() => {
-        setSidebarOpen(false);
-    }, [pathname]);
+    // Close sidebar on route change
+    useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
-    const handleLogout = async () => {
+    const handleLogout = useCallback(async () => {
         clearUser();
         await signOut();
         router.push("/");
-    };
+    }, [clearUser, router]);
 
-    const toggleTheme = () => {
-        setTheme(theme === "dark" ? "light" : "dark");
-    };
+    const handleManualSync = useCallback(async () => {
+        if (!session?.user || syncStatus === "syncing") return;
+        setSyncStatus("syncing");
+        try {
+            const result = await syncAllToCloud(session.user.id);
+            setSyncStatus(result.success ? "synced" : "error");
+            setTimeout(() => setSyncStatus("idle"), 3000);
+        } catch {
+            setSyncStatus("error");
+        }
+    }, [session, syncStatus]);
 
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-muted-foreground">Loading your data...</p>
+    if (loading) return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-glow animate-pulse">
+                        <Sparkles className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="absolute inset-0 rounded-2xl bg-violet-500/30 blur-xl animate-glow-pulse" />
                 </div>
+                <p className="text-muted-foreground text-sm animate-pulse">Loading your data...</p>
             </div>
-        );
-    }
+        </div>
+    );
 
-    if (!session) {
-        return null;
-    }
+    if (!session) return null;
+
+    const displayName   = localName  || user?.name  || "User";
+    const displayAvatar = localAvatar || user?.image || null;
+    const userInitial   = displayName.charAt(0).toUpperCase();
+    const cloudAvailable = isCloudSyncAvailable();
 
     return (
-        <div className="min-h-screen flex">
-            {/* Mobile Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 lg:hidden bg-card/95 backdrop-blur-xl border-b border-border">
-                <div className="flex items-center justify-between px-4 py-2.5">
-                    <Link href="/dashboard" className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                            <Sparkles className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="font-bold text-lg">NextLife</span>
-                    </Link>
-                    <div className="flex items-center gap-1.5">
-                        {/* Sync Status Indicator */}
-                        {isCloudSyncAvailable() && (
-                            <div
-                                className={`p-2 rounded-lg transition-colors ${syncStatus === "syncing"
-                                        ? "bg-blue-500/20"
-                                        : syncStatus === "synced"
-                                            ? "bg-green-500/20"
-                                            : syncStatus === "error"
-                                                ? "bg-red-500/20"
-                                                : "bg-secondary/50"
-                                    }`}
-                                title={
-                                    syncStatus === "syncing"
-                                        ? "Syncing..."
-                                        : syncStatus === "synced"
-                                            ? "Synced to cloud"
-                                            : syncStatus === "error"
-                                                ? "Sync error"
-                                                : "Cloud sync"
-                                }
-                            >
-                                {syncStatus === "syncing" ? (
-                                    <RefreshCw className="w-4 h-4 text-blue-500 animate-spin" />
-                                ) : syncStatus === "synced" ? (
-                                    <Cloud className="w-4 h-4 text-green-500" />
-                                ) : syncStatus === "error" ? (
-                                    <CloudOff className="w-4 h-4 text-red-500" />
-                                ) : (
-                                    <Cloud className="w-4 h-4 text-muted-foreground" />
-                                )}
-                            </div>
-                        )}
-                        <button
-                            onClick={toggleTheme}
-                            className="p-2 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                        >
-                            {theme === "dark" ? (
-                                <Sun className="w-4 h-4 text-yellow-500" />
-                            ) : (
-                                <Moon className="w-4 h-4 text-indigo-500" />
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            className="p-2 rounded-lg hover:bg-secondary transition-colors"
-                        >
-                            <Menu className="w-5 h-5" />
-                        </button>
+        <div className="min-h-screen flex bg-background">
+            {/* Aurora background */}
+            <div className="fixed inset-0 pointer-events-none z-0">
+                <div className="absolute top-0 left-0 w-[600px] h-[600px] rounded-full bg-violet-600/[0.04] blur-[120px]" />
+                <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-cyan-500/[0.03] blur-[100px]" />
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.015)_1px,transparent_1px)] bg-[size:80px_80px]" />
+            </div>
+
+            {/* ── Mobile Header ── */}
+            <header className="fixed top-0 left-0 right-0 z-50 lg:hidden h-14 flex items-center justify-between px-4 glass-strong border-b border-white/[0.06]">
+                <Link href="/dashboard" className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-glow-sm">
+                        <Sparkles className="w-4 h-4 text-white" />
                     </div>
+                    <span className="font-bold text-base">NextLife</span>
+                </Link>
+
+                <div className="flex items-center gap-1">
+                    {/* Cloud sync button */}
+                    {cloudAvailable && (
+                        <button onClick={handleManualSync} disabled={syncStatus === "syncing"}
+                            title={SYNC_LABELS[syncStatus]}
+                            className={`p-2 rounded-xl transition-colors ${syncStatus === "syncing" ? "bg-blue-500/15" : syncStatus === "synced" ? "bg-emerald-500/15" : syncStatus === "error" ? "bg-red-500/15" : "hover:bg-secondary"}`}>
+                            {syncStatus === "syncing" ? <RefreshCw className="w-4 h-4 text-blue-400 animate-spin" /> :
+                             syncStatus === "synced"  ? <Cloud className="w-4 h-4 text-emerald-400" /> :
+                             syncStatus === "error"   ? <CloudOff className="w-4 h-4 text-red-400" /> :
+                                                        <Cloud className="w-4 h-4 text-muted-foreground" />}
+                        </button>
+                    )}
+
+                    {/* Theme toggle */}
+                    <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        className="p-2 rounded-xl hover:bg-secondary transition-colors">
+                        {theme === "dark"
+                            ? <Sun className="w-4 h-4 text-amber-400" />
+                            : <Moon className="w-4 h-4 text-indigo-400" />}
+                    </button>
+
+                    {/* Menu */}
+                    <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-xl hover:bg-secondary transition-colors">
+                        <Menu className="w-5 h-5" />
+                    </button>
                 </div>
             </header>
 
-            {/* Sidebar Overlay */}
+            {/* ── Sidebar Overlay ── */}
             {sidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 lg:hidden"
-                    onClick={() => setSidebarOpen(false)}
-                />
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 lg:hidden" onClick={() => setSidebarOpen(false)} />
             )}
 
-            {/* Sidebar */}
-            <aside
-                className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-card border-r border-border flex flex-col transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-                    }`}
-            >
-                {/* Sidebar Header */}
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                    <Link href="/dashboard" className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30">
-                            <Sparkles className="w-5 h-5 text-white" />
+            {/* ── Sidebar ── */}
+            <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-72 flex flex-col bg-card/95 backdrop-blur-xl border-r border-white/[0.06] transform transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+                {/* Sidebar aurora glow */}
+                <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-violet-600/[0.06] to-transparent pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-violet-600/[0.04] to-transparent pointer-events-none" />
+
+                {/* Sidebar header */}
+                <div className="relative z-10 flex items-center justify-between px-5 h-16 border-b border-white/[0.05]">
+                    <Link href="/dashboard" className="flex items-center gap-3" onClick={() => setSidebarOpen(false)}>
+                        <div className="relative">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-glow-sm">
+                                <Sparkles className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="absolute inset-0 rounded-xl bg-violet-500/30 blur-lg opacity-50" />
                         </div>
                         <div>
-                            <span className="font-bold text-lg">NextLife</span>
-                            <p className="text-xs text-muted-foreground">Your Life Buddy</p>
+                            <p className="font-bold text-base leading-tight">NextLife</p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">Your Life Buddy</p>
                         </div>
                     </Link>
-                    <div className="flex items-center gap-2">
-                        {/* Desktop Theme Toggle */}
-                        <button
-                            onClick={toggleTheme}
-                            className="hidden lg:flex p-2 rounded-xl bg-secondary hover:bg-secondary/80 transition-colors"
-                        >
-                            {theme === "dark" ? (
-                                <Sun className="w-5 h-5 text-yellow-500" />
-                            ) : (
-                                <Moon className="w-5 h-5 text-indigo-500" />
-                            )}
+
+                    <div className="flex items-center gap-1">
+                        {/* Desktop theme toggle */}
+                        <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                            className="hidden lg:flex p-2 rounded-xl hover:bg-secondary transition-colors">
+                            {theme === "dark"
+                                ? <Sun className="w-4 h-4 text-amber-400" />
+                                : <Moon className="w-4 h-4 text-indigo-400" />}
                         </button>
-                        <button
-                            onClick={() => setSidebarOpen(false)}
-                            className="lg:hidden p-2 rounded-xl hover:bg-secondary transition-colors"
-                        >
+                        {/* Close button (mobile) */}
+                        <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 rounded-xl hover:bg-secondary transition-colors">
                             <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                <nav className="relative z-10 flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
                     {NAV_ITEMS.map((item) => {
                         const isActive = pathname === item.href;
                         return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive
-                                    ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary border border-primary/20"
-                                    : "hover:bg-secondary text-muted-foreground hover:text-foreground"
-                                    }`}
-                            >
-                                <item.icon className={`w-5 h-5 ${isActive ? "text-primary" : item.color}`} />
-                                <span>{item.label}</span>
+                            <Link key={item.href} href={item.href}
+                                className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all duration-200 ${
+                                    isActive
+                                        ? "bg-gradient-to-r from-violet-500/15 to-violet-500/5 border border-violet-500/20 text-foreground"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-secondary/60"
+                                }`}>
+                                {/* Icon */}
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
+                                    isActive
+                                        ? `bg-gradient-to-br ${item.gradient} shadow-lg ${item.glow}`
+                                        : `bg-secondary group-hover:bg-gradient-to-br group-hover:${item.gradient} group-hover:shadow-sm`
+                                }`}>
+                                    <item.icon className={`w-4 h-4 ${isActive ? "text-white" : "text-muted-foreground group-hover:text-white"} transition-colors`} />
+                                </div>
+                                <span className="text-sm">{item.label}</span>
+                                {isActive && (
+                                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                                )}
                             </Link>
                         );
                     })}
                 </nav>
 
-                {/* User Section */}
-                <div className="p-3 border-t border-border space-y-2">
-                    <Link
-                        href="/dashboard/settings"
-                        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${pathname === "/dashboard/settings"
-                            ? "bg-gradient-to-r from-primary/20 to-primary/5 text-primary"
-                            : "hover:bg-secondary text-muted-foreground hover:text-foreground"
-                            }`}
-                    >
-                        <Settings className="w-5 h-5" />
-                        <span>Settings</span>
+                {/* Bottom section */}
+                <div className="relative z-10 px-3 py-3 border-t border-white/[0.05] space-y-1">
+                    {/* Cloud sync (desktop) */}
+                    {cloudAvailable && (
+                        <button onClick={handleManualSync} disabled={syncStatus === "syncing"}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-left ${
+                                syncStatus === "syncing" ? "bg-blue-500/10 text-blue-400" :
+                                syncStatus === "synced"  ? "bg-emerald-500/10 text-emerald-400" :
+                                syncStatus === "error"   ? "bg-red-500/10 text-red-400" :
+                                "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            }`}>
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                syncStatus === "syncing" ? "bg-blue-500/15" :
+                                syncStatus === "synced"  ? "bg-emerald-500/15" :
+                                syncStatus === "error"   ? "bg-red-500/15" : "bg-secondary"
+                            }`}>
+                                {syncStatus === "syncing" ? <RefreshCw className="w-4 h-4 animate-spin" /> :
+                                 syncStatus === "synced"  ? <Cloud className="w-4 h-4" /> :
+                                 syncStatus === "error"   ? <CloudOff className="w-4 h-4" /> :
+                                                            <Cloud className="w-4 h-4" />}
+                            </div>
+                            <span className="text-sm font-medium">{SYNC_LABELS[syncStatus]}</span>
+                        </button>
+                    )}
+
+                    {/* Settings */}
+                    <Link href="/dashboard/settings"
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all font-medium ${
+                            pathname === "/dashboard/settings"
+                                ? "bg-gradient-to-r from-violet-500/15 to-violet-500/5 border border-violet-500/20 text-foreground"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        }`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${pathname === "/dashboard/settings" ? "bg-gradient-to-br from-violet-500 to-purple-600 shadow-glow-sm" : "bg-secondary"}`}>
+                            <Settings className={`w-4 h-4 ${pathname === "/dashboard/settings" ? "text-white" : "text-muted-foreground"}`} />
+                        </div>
+                        <span className="text-sm">Settings</span>
                     </Link>
 
-                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/50">
-                        {user?.image ? (
-                            <img
-                                src={user.image}
-                                alt={user.name || "User"}
-                                className="w-10 h-10 rounded-full object-cover"
-                            />
+                    {/* User card */}
+                    <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-secondary/40 border border-white/[0.04]">
+                        {displayAvatar ? (
+                            <img src={displayAvatar} alt={displayName} className="w-9 h-9 rounded-xl object-cover ring-2 ring-violet-500/30 flex-shrink-0" />
                         ) : (
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold">
-                                {user?.name?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center text-white font-bold text-sm shadow-glow-sm flex-shrink-0">
+                                {userInitial}
                             </div>
                         )}
                         <div className="flex-1 min-w-0">
-                            <p className="font-semibold truncate">{user?.name || "User"}</p>
-                            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                            <p className="font-semibold text-sm truncate leading-tight">{displayName}</p>
+                            <p className="text-xs text-muted-foreground truncate leading-tight">{user?.email || ""}</p>
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-destructive/10 text-destructive font-medium transition-all"
-                    >
-                        <LogOut className="w-5 h-5" />
-                        <span>Log Out</span>
+                    {/* Logout */}
+                    <button onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-muted-foreground hover:text-red-400 font-medium transition-all">
+                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
+                            <LogOut className="w-4 h-4" />
+                        </div>
+                        <span className="text-sm">Log Out</span>
                     </button>
                 </div>
             </aside>
 
-            {/* Main Content */}
-            <main className="flex-1 min-h-screen bg-background">
-                <div className="pt-14 lg:pt-0 pb-20 lg:pb-4 px-4 md:px-6 lg:px-8 max-w-6xl mx-auto">
-                    <div className="py-4 lg:py-6">{children}</div>
+            {/* ── Main Content ── */}
+            <main className="relative z-10 flex-1 min-h-screen">
+                <div className="pt-14 lg:pt-0 pb-24 lg:pb-8 px-4 md:px-6 lg:px-8 max-w-5xl mx-auto">
+                    <div className="py-5 lg:py-7">{children}</div>
                 </div>
             </main>
 
-            {/* Mobile Bottom Navigation - Customizable */}
-            <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden bg-card/80 backdrop-blur-xl border-t border-border safe-area-inset">
-                <div className="flex justify-around py-2">
+            {/* ── Mobile Bottom Nav ── */}
+            <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden h-16 glass-strong border-t border-white/[0.06] safe-area-inset">
+                <div className="flex items-stretch h-full">
                     {mobileNavItems.map((navId) => {
                         const item = NAV_MAP[navId];
                         if (!item) return null;
                         const isActive = pathname === item.href;
                         return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all ${isActive ? "text-primary" : "text-muted-foreground"
-                                    }`}
-                            >
-                                <item.icon className={`w-5 h-5 ${isActive ? item.color : ""}`} />
-                                <span className="text-[10px] font-medium">{item.label}</span>
+                            <Link key={item.href} href={item.href}
+                                className={`flex flex-col items-center justify-center gap-1 flex-1 transition-all ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${isActive ? `bg-gradient-to-br ${item.gradient} shadow-lg` : ""}`}>
+                                    <item.icon className={`w-4.5 h-4.5 ${isActive ? "text-white" : ""}`} style={{ width: "18px", height: "18px" }} />
+                                </div>
+                                <span className={`text-[9px] font-medium leading-none ${isActive ? "text-violet-400" : ""}`}>{item.label}</span>
                             </Link>
                         );
                     })}
